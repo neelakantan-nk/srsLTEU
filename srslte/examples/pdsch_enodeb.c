@@ -561,7 +561,14 @@ int main(int argc, char **argv) {
 #ifndef DISABLE_RF
   bool start_of_burst = true; 
 #endif
-  
+ 
+  // TODO: What should be done for LTE-U?
+  // transmit zeros peridically based on duty cycle?
+  // (More viable solution)
+  // Or stop the transmission completely?
+  // MAybe it is same thing as sending zeros.
+
+  // XXX : transmission takes place in scale of subframes
   while ((nf < nof_frames || nof_frames == -1) && !go_exit) { /*Frame*/
     for (sf_idx = 0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1); sf_idx++) {/*Subframe*/
       bzero(sf_buffer, sizeof(cf_t) * sf_n_re);
@@ -587,6 +594,7 @@ int main(int argc, char **argv) {
       }
       
       /* Transmit PDCCH + PDSCH only when there is data to send */
+      // XXX: Data from upper layer is being received here.
       if (net_port > 0) {
         send_data = net_packet_ready; 
         if (net_packet_ready) {
@@ -642,6 +650,9 @@ int main(int argc, char **argv) {
       
       /* Transform to OFDM symbols */
       srslte_ofdm_tx_sf(&ifft, sf_buffer, output_buffer);
+
+      //TODO: Here output_buffer can be periodically emptied. 
+      //But what about the data from upper layer?
       
       /* send to file or usrp */
       if (output_file_name) {
