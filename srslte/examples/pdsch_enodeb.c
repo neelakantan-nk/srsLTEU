@@ -562,8 +562,8 @@ int main(int argc, char **argv) {
   bool start_of_burst = true; 
 #endif
   
-  while ((nf < nof_frames || nof_frames == -1) && !go_exit) {
-    for (sf_idx = 0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1); sf_idx++) {
+  while ((nf < nof_frames || nof_frames == -1) && !go_exit) { /*Frame*/
+    for (sf_idx = 0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1); sf_idx++) {/*Subframe*/
       bzero(sf_buffer, sizeof(cf_t) * sf_n_re);
 
       if (sf_idx == 0 || sf_idx == 5) {

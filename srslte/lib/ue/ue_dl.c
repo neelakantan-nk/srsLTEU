@@ -190,6 +190,7 @@ int srslte_ue_dl_decode(srslte_ue_dl_t *q, cf_t *input, uint8_t *data, uint32_t 
   return srslte_ue_dl_decode_rnti(q, input, data, tti, q->current_rnti);
 }
 
+ /*    OFDM demodulation  */
 int srslte_ue_dl_decode_fft_estimate(srslte_ue_dl_t *q, cf_t *input, uint32_t sf_idx, uint32_t *cfi) {
   if (input && q && cfi && sf_idx < SRSLTE_NSUBFRAMES_X_FRAME) {
     
@@ -211,6 +212,7 @@ int srslte_ue_dl_decode_fft_estimate(srslte_ue_dl_t *q, cf_t *input, uint32_t sf
   }
 }
 
+ /*    Channel estimation  */
 int srslte_ue_dl_decode_estimate(srslte_ue_dl_t *q, uint32_t sf_idx, uint32_t *cfi) {
   float cfi_corr; 
   if (q && cfi && sf_idx < SRSLTE_NSUBFRAMES_X_FRAME) {
@@ -218,7 +220,7 @@ int srslte_ue_dl_decode_estimate(srslte_ue_dl_t *q, uint32_t sf_idx, uint32_t *c
     /* Get channel estimates for each port */
     srslte_chest_dl_estimate(&q->chest, q->sf_symbols, q->ce, sf_idx);
 
-    /* First decode PCFICH and obtain CFI */
+    /* First decode PCFICH and obtain CFI (Control format indicator) */
     if (srslte_pcfich_decode(&q->pcfich, q->sf_symbols, q->ce, 
                              srslte_chest_dl_get_noise_estimate(&q->chest), 
                              sf_idx, cfi, &cfi_corr)<0) {
@@ -294,7 +296,7 @@ int srslte_ue_dl_decode_rnti(srslte_ue_dl_t *q, cf_t *input, uint8_t *data, uint
 
     q->nof_detected++;
   
-    // Uncoment next line to do ZF by default in pdsch_ue example
+    // Uncomment next line to do ZF by default in pdsch_ue example
     //float noise_estimate = 0; 
     float noise_estimate = srslte_chest_dl_get_noise_estimate(&q->chest);
     
