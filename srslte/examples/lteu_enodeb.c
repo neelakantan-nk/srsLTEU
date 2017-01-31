@@ -566,20 +566,29 @@ int main(int argc, char **argv) {
     for (sf_idx = 0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1); sf_idx++) {
       bzero(sf_buffer, sizeof(cf_t) * sf_n_re);
 
-      if (sf_idx == 0 || sf_idx == 5) {
+      // Send PSS and SSS only in zeroth sub frame - LTE standards mandate transmitting in SF 5 as well 
+      if (sf_idx == 0) {
         srslte_pss_put_slot(pss_signal, sf_buffer, cell.nof_prb, SRSLTE_CP_NORM);
         srslte_sss_put_slot(sf_idx ? sss_signal5 : sss_signal0, sf_buffer, cell.nof_prb,
             SRSLTE_CP_NORM);
       }
 
-      srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer);
+      // Assuming transmissions in SF 3 and 4 are active 
+      // Reference signal insertion  
+      if (sf_idx == 3 || sf_idx == 4) {
+      srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer); 
+      }
 
+      // MIB only in SF 0 
       srslte_pbch_mib_pack(&cell, sfn, bch_payload);
       if (sf_idx == 0) {
         srslte_pbch_encode(&pbch, bch_payload, slot1_symbols, nf%4);
       }
 
-      srslte_pcfich_encode(&pcfich, cfi, sf_symbols, sf_idx);       
+      // PCFICH insertion 
+      if (sf_idx == 3 || sf_idx == 4) {
+      srslte_pcfich_encode(&pcfich, cfi, sf_symbols, sf_idx); 
+      }        
 
       /* Update DL resource allocation from control port */
       if (update_control(sf_idx)) {
@@ -588,8 +597,9 @@ int main(int argc, char **argv) {
       
       /* Transmit PDCCH + PDSCH only when there is data to send */
       if (net_port > 0) {
-        send_data = net_packet_ready; 
-        if (sf_idx == 3) { //transmit only in 4th sub frame 
+        //send_data = net_packet_ready; 
+        send_data = false; 
+        if (sf_idx == 3 || sf_idx == 4) { //transmit only in 3rd and 7th sub frames
          send_data = true; 
          INFO("Inside sf_id block!!\n",0); 
          } 
