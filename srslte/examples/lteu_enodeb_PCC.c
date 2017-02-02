@@ -132,6 +132,7 @@ void parse_args(int argc, char **argv) {
       break;
     case 'b':
       rf_args_pcc = argv[optind]; //RF Args for PCC 
+      break; 
     case 'g':
       rf_gain = atof(argv[optind]);
       break;
