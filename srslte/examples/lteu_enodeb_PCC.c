@@ -81,16 +81,21 @@ float rf_amp_pcc = 0.8, rf_gain_pcc = 70.0, rf_freq_pcc = 1800000000; //Paramete
 bool null_file_sink=false; 
 srslte_filesink_t fsink;
 srslte_ofdm_t ifft;
-srslte_pbch_t pbch;
-srslte_pcfich_t pcfich;
+srslte_pbch_t pbch; 
+srslte_pcfich_t pcfich; 
 srslte_pdcch_t pdcch;
 srslte_pdsch_t pdsch;
 srslte_pdsch_cfg_t pdsch_cfg; 
 srslte_softbuffer_tx_t softbuffer; 
+
 srslte_regs_t regs;
 srslte_ra_dl_dci_t ra_dl;  
 
+srslte_softbuffer_tx_t softbuffer_PCC; 
+
 cf_t *sf_buffer = NULL, *output_buffer = NULL;
+cf_t *sf_buffer_PCC = NULL, *output_buffer_PCC = NULL; 
+
 int sf_n_re, sf_n_samples;
 
 pthread_t net_thread; 
@@ -189,6 +194,17 @@ void base_init() {
     perror("malloc");
     exit(-1);
   }
+ sf_buffer_PCC = srslte_vec_malloc(sizeof(cf_t) * sf_n_re);
+  if (!sf_buffer_PCC) {
+    perror("malloc");
+    exit(-1);
+  }
+  output_buffer_PCC = srslte_vec_malloc(sizeof(cf_t) * sf_n_samples);
+  if (!output_buffer_PCC) {
+    perror("malloc");
+    exit(-1);
+  }
+
   /* open file or USRP */
   if (output_file_name) {
     if (strcmp(output_file_name, "NULL")) {
@@ -277,6 +293,12 @@ void base_init() {
     fprintf(stderr, "Error initiating soft buffer\n");
     exit(-1);
   }
+
+  if (srslte_softbuffer_tx_init(&softbuffer_PCC, cell.nof_prb)) {
+    fprintf(stderr, "Error initiating soft buffer PCC\n");
+    exit(-1);
+  }
+
 }
 
 void base_free() {
@@ -295,6 +317,13 @@ void base_free() {
   if (output_buffer) {
     free(output_buffer);
   }
+ if (sf_buffer_PCC) {
+    free(sf_buffer_PCC);
+  }
+  if (output_buffer_PCC) {
+    free(output_buffer_PCC);
+  }
+
   if (output_file_name) {
     if (!null_file_sink) {
       srslte_filesink_free(&fsink);      
@@ -473,6 +502,10 @@ int main(int argc, char **argv) {
   int i;
   cf_t *sf_symbols[SRSLTE_MAX_PORTS];
   cf_t *slot1_symbols[SRSLTE_MAX_PORTS];
+
+  cf_t *sf_symbols_PCC[SRSLTE_MAX_PORTS];
+  cf_t *slot1_symbols_PCC[SRSLTE_MAX_PORTS];   
+
   srslte_dci_msg_t dci_msg;
   srslte_dci_location_t locations[SRSLTE_NSUBFRAMES_X_FRAME][30];
   uint32_t sfn; 
@@ -514,7 +547,8 @@ int main(int argc, char **argv) {
   for (i = 0; i < SRSLTE_MAX_PORTS; i++) { // now there's only 1 port
     sf_symbols[i] = sf_buffer;
     slot1_symbols[i] = &sf_buffer[SRSLTE_SLOT_LEN_RE(cell.nof_prb, cell.cp)];
-  }
+    sf_symbols_PCC[i] = sf_buffer_PCC;
+    slot1_symbols_PCC[i] = &sf_buffer_PCC[SRSLTE_SLOT_LEN_RE(cell.nof_prb, cell.cp)];  }
 
 #ifndef DISABLE_RF
 
@@ -577,7 +611,10 @@ int main(int argc, char **argv) {
   nf = 0;
   
   bool send_data = false; 
+  bool send_data_PCC = false; 
+
   srslte_softbuffer_tx_reset(&softbuffer);
+  srslte_softbuffer_tx_reset(&softbuffer_PCC);
 
 #ifndef DISABLE_RF
   bool start_of_burst = true; 
@@ -585,14 +622,18 @@ int main(int argc, char **argv) {
   
   while ((nf < nof_frames || nof_frames == -1) && !go_exit) {
     for (sf_idx = 0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1); sf_idx++) {
-      bzero(sf_buffer, sizeof(cf_t) * sf_n_re);
+      bzero(sf_buffer, sizeof(cf_t) * sf_n_re); 
+      bzero(sf_buffer_PCC, sizeof(cf_t) * sf_n_re); 
 
-      // Send PSS and SSS only in zeroth sub frame - LTE standards mandate transmitting in SF 5 as well 
-      if (sf_idx == 0) {
-        srslte_pss_put_slot(pss_signal, sf_buffer, cell.nof_prb, SRSLTE_CP_NORM);
-        srslte_sss_put_slot(sf_idx ? sss_signal5 : sss_signal0, sf_buffer, cell.nof_prb,
+      // Send PSS and SSS in both SF 0 and SF 5 of PCC; do not send any SS in SCC  
+      if (sf_idx == 0 || sf_idx == 5) {
+        srslte_pss_put_slot(pss_signal, sf_buffer_PCC, cell.nof_prb, SRSLTE_CP_NORM);
+        srslte_sss_put_slot(sf_idx ? sss_signal5 : sss_signal0, sf_buffer_PCC, cell.nof_prb,
             SRSLTE_CP_NORM);
       }
+
+      //Reference signal insertion for PCC 
+      srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer_PCC); 
 
       // Assuming transmissions in SF 3 and 4 are active 
       // Reference signal insertion  
@@ -604,9 +645,13 @@ int main(int argc, char **argv) {
       srslte_pbch_mib_pack(&cell, sfn, bch_payload);
       if (sf_idx == 0) {
         srslte_pbch_encode(&pbch, bch_payload, slot1_symbols, nf%4);
+        srslte_pbch_encode(&pbch, bch_payload, slot1_symbols_PCC, nf%4);
       }
 
-      // PCFICH insertion 
+      // PCFICH insertion for PCC (all SFs) 
+      srslte_pcfich_encode(&pcfich, cfi, sf_symbols_PCC, sf_idx); 
+
+      // PCFICH insertion for specific SFs
       if (sf_idx == 3 || sf_idx == 4) {
       srslte_pcfich_encode(&pcfich, cfi, sf_symbols, sf_idx); 
       }        
@@ -620,6 +665,7 @@ int main(int argc, char **argv) {
       if (net_port > 0) {
         //send_data = net_packet_ready; 
         send_data = false; 
+        send_data_PCC = true; //Always send data in PCC 
         if (sf_idx == 3 || sf_idx == 4) { //transmit only in 3rd and 7th sub frames
          send_data = true; 
          INFO("Inside sf_id block!!\n",0); 
@@ -628,7 +674,7 @@ int main(int argc, char **argv) {
         send_data = false; 
         } 
         if (send_data) {
-          INFO("Transmitting packet\n",0);
+          INFO("Transmitting packet SCC\n",0);
         }
       } else {
         INFO("SF: %d, Generating %d random bits\n", sf_idx, pdsch_cfg.grant.mcs.tbs);
@@ -676,10 +722,47 @@ int main(int argc, char **argv) {
           net_packet_ready = false; 
           sem_post(&net_sem);
         }
-      }
-      
+      } 
+
+   // Sending data in PCC 
+    if (send_data_PCC) {
+              
+        /* Encode PDCCH */
+        INFO("Putting DCI to location: n=%d, L=%d\n", locations[sf_idx][0].ncce, locations[sf_idx][0].L);
+        srslte_dci_msg_pack_pdsch(&ra_dl, SRSLTE_DCI_FORMAT1, &dci_msg, cell.nof_prb, false);
+        if (srslte_pdcch_encode(&pdcch, &dci_msg, locations[sf_idx][0], UE_CRNTI, sf_symbols_PCC, sf_idx, cfi)) {
+          fprintf(stderr, "Error encoding DCI message\n");
+          exit(-1);
+        }
+
+        /* Configure pdsch_cfg parameters */
+        srslte_ra_dl_grant_t grant; 
+        srslte_ra_dl_dci_to_grant(&ra_dl, cell.nof_prb, UE_CRNTI, &grant);        
+        if (srslte_pdsch_cfg(&pdsch_cfg, cell, &grant, cfi, sf_idx, 0)) {
+          fprintf(stderr, "Error configuring PDSCH\n");
+          exit(-1);
+        }
+       
+        /* Encode PDSCH */
+        if (srslte_pdsch_encode(&pdsch, &pdsch_cfg, &softbuffer_PCC, data, sf_symbols)) {
+          fprintf(stderr, "Error encoding PDSCH\n");
+          exit(-1);
+        }        
+        if (net_port > 0 && net_packet_ready) {
+          if (null_file_sink) {
+            srslte_bit_pack_vector(data, data_tmp, pdsch_cfg.grant.mcs.tbs);
+            if (srslte_netsink_write(&net_sink, data_tmp, 1+(pdsch_cfg.grant.mcs.tbs-1)/8) < 0) {
+              fprintf(stderr, "Error sending data through UDP socket\n");
+            }            
+          }
+          net_packet_ready = false; 
+          sem_post(&net_sem);
+        }
+      } 
+
       /* Transform to OFDM symbols */
       srslte_ofdm_tx_sf(&ifft, sf_buffer, output_buffer);
+      srslte_ofdm_tx_sf(&ifft, sf_buffer_PCC, output_buffer_PCC);
       
       /* send to file or usrp */
       if (output_file_name) {
@@ -694,8 +777,8 @@ int main(int argc, char **argv) {
         srslte_vec_sc_prod_cfc(output_buffer, rf_amp*norm_factor, output_buffer, SRSLTE_SF_LEN_PRB(cell.nof_prb));
         srslte_rf_send2(&rf, output_buffer, sf_n_samples, true, start_of_burst, false);
 
-        srslte_vec_sc_prod_cfc(output_buffer, rf_amp_pcc*norm_factor, output_buffer, SRSLTE_SF_LEN_PRB(cell.nof_prb));
-        srslte_rf_send2(&rf_pcc, output_buffer, sf_n_samples, true, start_of_burst, false);
+        srslte_vec_sc_prod_cfc(output_buffer_PCC, rf_amp_pcc*norm_factor, output_buffer_PCC, SRSLTE_SF_LEN_PRB(cell.nof_prb));
+        srslte_rf_send2(&rf_pcc, output_buffer_PCC, sf_n_samples, true, start_of_burst, false);
 
         start_of_burst=false; 
 #endif
