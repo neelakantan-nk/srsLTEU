@@ -65,10 +65,12 @@ srslte_cell_t cell = {
   SRSLTE_PHICH_NORM    // PHICH length
 };
   
-int net_port = -1; // -1 generates random dataThat means there is some problem sending samples to the device
+int net_port = -1; // -1 generates random dataThat means there is some problem sending samples to the device 
+int net_port_pcc = -1; // Default port for PCC 
 
 uint32_t cfi=3;
-uint32_t mcs_idx = 1, last_mcs_idx = 1;
+uint32_t mcs_idx = 1, last_mcs_idx = 1; 
+//uint32_t mcs_idx_pcc = 1; // MCS index for PCC 
 int nof_frames = -1;
 
 // TODO: decide if these parameters need some default value
@@ -78,6 +80,9 @@ char *rf_args_pcc = ""; // RF Args for PCC
 float rf_amp = 0.8, rf_gain = 70.0, rf_freq = 2400000000; 
 
 float rf_amp_pcc = 0.8, rf_gain_pcc = 70.0, rf_freq_pcc = 1800000000; //Parameters for PCC RF chain 
+
+int sf_start = 0; //Default first active SF 
+int sf_end = 10; //Default last active SF 
 
 bool null_file_sink=false; 
 srslte_filesink_t fsink;
@@ -100,11 +105,16 @@ cf_t *sf_buffer_pcc = NULL, *output_buffer_pcc = NULL;
 int sf_n_re, sf_n_samples;
 
 pthread_t net_thread; 
+pthread_t net_thread_pcc; 
 void *net_thread_fnc(void *arg);
-sem_t net_sem;
+sem_t net_sem; 
+sem_t net_sem_pcc; 
 bool net_packet_ready = false; 
+bool net_packet_ready_pcc = false;
 srslte_netsource_t net_source; 
+srslte_netsource_t net_source_pcc; 
 srslte_netsink_t net_sink; 
+srslte_netsink_t net_sink_pcc;
 
 int prbset_num = 1, last_prbset_num = 1; 
 int prbset_orig = 0; 
@@ -113,22 +123,23 @@ int prbset_orig = 0;
 // TODO: always update the help for better management
 // TODO: Do we need parameter for duty cycle?
 void usage(char *prog) {
-  printf("Usage: %s [abgmfoncvpu]\n", prog);
+  printf("Usage: %s [ablgofsenmpuv]\n", prog);
 #ifndef DISABLE_RF
-  printf("\t-a RF args for unlicensed band [Default %s]\n", rf_args);
-  printf("\t-b RF args for licensed band [Default %s]\n", rf_args_pcc);
-  printf("\t-l RF amplitude [Default %.2f]\n", rf_amp);
-  printf("\t-g RF TX gain [Default %.2f dB]\n", rf_gain);
-  printf("\t-f RF TX frequency [Default %.1f MHz]\n", rf_freq / 1000000);
+  printf("\t-a RF args PCC [Default %s]\n", rf_args_pcc);
+  printf("\t-b RF args SCC [Default %s]\n", rf_args);
+  printf("\t-l RF TX gain PCC [Default %.2f]\n", rf_gain_pcc);
+  printf("\t-g RF TX gain SCC [Default %.2f dB]\n", rf_gain);
+  printf("\t-o RF TX frequency PCC [Default %.1f MHz]\n", rf_freq_pcc / 1000000);
+  printf("\t-f RF TX frequency SCC [Default %.1f MHz]\n", rf_freq / 1000000);
+  printf("\t-s SCC - First active Sub Frame [Default %s]\n", sf_start); 
+  printf("\t-e SCC - Last active Sub Frame [Default %s]\n", sf_end); 
 #else
   printf("\t   RF is disabled.\n");
 #endif
-  printf("\t-o output_file [Default use RF board]\n");
-  printf("\t-m MCS index [Default %d]\n", mcs_idx);
-  printf("\t-n number of frames [Default %d]\n", nof_frames);
-  printf("\t-c cell id [Default %d]\n", cell.id);
-  printf("\t-p nof_prb [Default %d]\n", cell.nof_prb);
-  printf("\t-u listen TCP port for input data (-1 is random) [Default %d]\n", net_port);
+ // printf("\t-n MCS index PCC [Default %d]\n", mcs_idx_pcc);
+  printf("\t-m MCS index (common for PCC and SCC) [Default %d]\n", mcs_idx);
+  printf("\t-p listen TCP port for input data PCC [Default %d]\n", net_port_pcc);
+  printf("\t-u listen TCP port for input data SCC (-1 is random) [Default %d]\n", net_port);
   printf("\t-v [set srslte_verbose to debug, default none]\n");
 }
 
@@ -136,25 +147,31 @@ void usage(char *prog) {
 // Ideally they should be decoupled
 void parse_args(int argc, char **argv) {
   int opt;
-  while ((opt = getopt(argc, argv, "abglfmoncpvu")) != -1) {
+  while ((opt = getopt(argc, argv, "ablgofsenmpuv")) != -1) {
     switch (opt) {
     case 'a':
-      rf_args = argv[optind];
+      rf_args_pcc = argv[optind];
       break;
     case 'b':
-      rf_args_pcc = argv[optind]; //RF Args for PCC 
+      rf_args = argv[optind]; 
       break; 
     case 'g':
       rf_gain = atof(argv[optind]);
       break;
     case 'l':
-      rf_amp = atof(argv[optind]);
+      rf_gain_pcc = atof(argv[optind]);
       break;
     case 'f':
       rf_freq = atof(argv[optind]);
       break;
+    case 's': 
+      sf_start = atoi(argv[optind]);
+      break;
+    case 'e': 
+      sf_end = atoi(argv[optind]);
+      break; 
     case 'o':
-      output_file_name = argv[optind];
+      rf_freq_pcc = atof(argv[optind]);;
       break;
     case 'm':
       mcs_idx = atoi(argv[optind]);
@@ -162,14 +179,11 @@ void parse_args(int argc, char **argv) {
     case 'u':
       net_port = atoi(argv[optind]);
       break;
-    case 'n':
-      nof_frames = atoi(argv[optind]);
-      break;
+    //case 'n':
+    //  mcs_idx_pcc = atoi(argv[optind]);
+    //  break;
     case 'p':
-      cell.nof_prb = atoi(argv[optind]);
-      break;
-    case 'c':
-      cell.id = atoi(argv[optind]);
+      net_port_pcc = atoi(argv[optind]);
       break;
     case 'v':
       srslte_verbose++;
@@ -242,16 +256,33 @@ void base_init() {
   
   if (net_port > 0) {
     if (srslte_netsource_init(&net_source, "0.0.0.0", net_port, SRSLTE_NETSOURCE_TCP)) {
-      fprintf(stderr, "Error creating input UDP socket at port %d\n", net_port);
+      fprintf(stderr, "Error creating input UDP socket for SCC at port %d\n", net_port);
       exit(-1);
     }
     if (null_file_sink) {
       if (srslte_netsink_init(&net_sink, "127.0.0.1", net_port+1, SRSLTE_NETSINK_TCP)) {
         fprintf(stderr, "Error sink\n");
         exit(-1);
-      }      
+      } 
     }
-    if (sem_init(&net_sem, 0, 1)) {
+     if (sem_init(&net_sem, 0, 1)) {
+      perror("sem_init");
+      exit(-1);
+    } 
+    } 
+
+  if (net_port_pcc > 0) {
+     if (srslte_netsource_init(&net_source_pcc, "0.0.0.0", net_port_pcc, SRSLTE_NETSOURCE_TCP)) {
+         fprintf(stderr, "Error creating input UDP socket for PCC at port %d\n", net_port);
+          exit(-1);
+       }
+     if (null_file_sink) {
+      if (srslte_netsink_init(&net_sink_pcc, "127.0.0.1", net_port_pcc+1, SRSLTE_NETSINK_TCP)) {
+        fprintf(stderr, "Error sink\n");
+        exit(-1);
+      }  
+    }
+    if (sem_init(&net_sem_pcc, 0, 1)) {
       perror("sem_init");
       exit(-1);
     }
@@ -345,6 +376,12 @@ void base_free() {
     srslte_netsource_free(&net_source);
     sem_close(&net_sem);
   }  
+
+  if (net_port_pcc > 0) {
+    srslte_netsource_free(&net_source_pcc);
+    sem_close(&net_sem_pcc);
+  }  
+
 }
 
 
@@ -462,7 +499,9 @@ int update_control() {
 
 #define DATA_BUFF_SZ    1024*128
 uint8_t data[8*DATA_BUFF_SZ], data2[DATA_BUFF_SZ];
-uint8_t data_tmp[DATA_BUFF_SZ];
+uint8_t data_tmp[DATA_BUFF_SZ]; 
+
+uint8_t data_pcc[8*DATA_BUFF_SZ], data_tmp_pcc[DATA_BUFF_SZ]; 
 
 /** Function run in a separate thread to receive UDP data */
 void *net_thread_fnc(void *arg) {
@@ -484,6 +523,41 @@ void *net_thread_fnc(void *arg) {
         rpm -= nbytes;          
         wpm += nbytes; 
         net_packet_ready = true; 
+      }
+      if (wpm > 0) {
+        INFO("%d bytes left in buffer for next packet\n", rpm);
+        memcpy(data2, &data2[wpm], rpm * sizeof(uint8_t));
+      }
+    } else if (n == 0) {
+      rpm = 0; 
+    } else {
+      fprintf(stderr, "Error receiving from network\n");
+      exit(-1);
+    }      
+  } while(n >= 0);
+  return NULL;
+}
+
+/** Function to receive PCC UDP data **/ 
+void *net_thread_fnc_pcc(void *arg) {
+  int n; 
+  int rpm = 0, wpm=0; 
+  
+  do {
+    n = srslte_netsource_read(&net_source_pcc, &data2[rpm], DATA_BUFF_SZ-rpm);
+    if (n > 0) {
+      int nbytes = 1+(pdsch_cfg.grant.mcs.tbs-1)/8;
+      rpm += n; 
+      INFO("received %d bytes. rpm=%d/%d\n",n,rpm,nbytes);
+      wpm = 0; 
+      while (rpm >= nbytes) {
+        // wait for packet to be transmitted
+        sem_wait(&net_sem_pcc);
+        memcpy(data_pcc, &data2[wpm], nbytes);          
+        INFO("Sent %d/%d bytes ready\n", nbytes, rpm);
+        rpm -= nbytes;          
+        wpm += nbytes; 
+        net_packet_ready_pcc = true; 
       }
       if (wpm > 0) {
         INFO("%d bytes left in buffer for next packet\n", rpm);
@@ -607,7 +681,14 @@ int main(int argc, char **argv) {
       exit(-1);
     }
   }
-  
+ 
+  if (net_port_pcc > 0) {
+    if (pthread_create(&net_thread_pcc, NULL, net_thread_fnc_pcc, NULL)) {
+      perror("pthread_create");
+      exit(-1);
+    }
+  }
+
   /* Initiate valid DCI locations */
   for (i=0;i<SRSLTE_NSUBFRAMES_X_FRAME;i++) {
     srslte_pdcch_ue_locations(&pdcch, locations[i], 30, i, cfi, UE_CRNTI);
@@ -644,7 +725,7 @@ int main(int argc, char **argv) {
       // Assuming transmissions in SF 3 and 4 are active 
       // TODO: Active subcarrier should probably come from parameters
       // Reference signal insertion  
-      if (sf_idx == 3 || sf_idx == 4) {
+      if (sf_idx >= sf_start && sf_idx <= sf_end) {
           srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer); 
       }
 
@@ -653,14 +734,14 @@ int main(int argc, char **argv) {
       srslte_pbch_mib_pack(&cell, sfn, bch_payload);
       if (sf_idx == 0) {
         srslte_pbch_encode(&pbch, bch_payload, slot1_symbols, nf%4);
-        srslte_pbch_encode(&pbch, bch_payload, slot1_symbols_pcc, nf%4);
+        //srslte_pbch_encode(&pbch, bch_payload, slot1_symbols_pcc, nf%4);
       }
 
       // PCFICH insertion for PCC (all SFs) 
       srslte_pcfich_encode(&pcfich, cfi, sf_symbols_pcc, sf_idx); 
 
       // PCFICH insertion for specific SFs
-      if (sf_idx == 3 || sf_idx == 4) {
+      if (sf_idx >= sf_start || sf_idx <= sf_end) {
       srslte_pcfich_encode(&pcfich, cfi, sf_symbols, sf_idx); 
       }        
 
@@ -691,10 +772,10 @@ int main(int argc, char **argv) {
 
 
         // Data is available at input port to be sent
-        send_data_pcc = net_packet_ready; 
+        send_data_pcc = net_packet_ready_pcc; 
         send_data = net_packet_ready; 
         // Selectively disable the transmission on sec channel
-        if (sf_idx != 3 && sf_idx != 4) { 
+        if (sf_idx < sf_start || sf_idx > sf_end) { 
           send_data = false;
         }
         if (send_data_pcc) {
@@ -709,7 +790,7 @@ int main(int argc, char **argv) {
           data[i] = rand()%256;
         }
         /* Uncomment this to transmit on sf 0 and 5 only  */
-        if (sf_idx == 1) {
+        if (sf_idx != 0 && sf_idx != 5) {
           send_data = true; 
         } else {
           send_data = false;           
@@ -775,19 +856,19 @@ int main(int argc, char **argv) {
         }
        
         /* Encode PDSCH */
-        if (srslte_pdsch_encode(&pdsch, &pdsch_cfg, &softbuffer_pcc, data, sf_symbols)) {
+        if (srslte_pdsch_encode(&pdsch, &pdsch_cfg, &softbuffer_pcc, data_pcc, sf_symbols)) {
           fprintf(stderr, "Error encoding PDSCH\n");
           exit(-1);
         }        
-        if (net_port > 0 && net_packet_ready) {
+        if (net_port_pcc > 0 && net_packet_ready_pcc) {
           if (null_file_sink) {
-            srslte_bit_pack_vector(data, data_tmp, pdsch_cfg.grant.mcs.tbs);
-            if (srslte_netsink_write(&net_sink, data_tmp, 1+(pdsch_cfg.grant.mcs.tbs-1)/8) < 0) {
+            srslte_bit_pack_vector(data_pcc, data_tmp_pcc, pdsch_cfg.grant.mcs.tbs);
+            if (srslte_netsink_write(&net_sink_pcc, data_tmp_pcc, 1+(pdsch_cfg.grant.mcs.tbs-1)/8) < 0) {
               fprintf(stderr, "Error sending data through UDP socket\n");
             }            
           }
-          net_packet_ready = false; 
-          sem_post(&net_sem);
+          net_packet_ready_pcc = false; 
+          sem_post(&net_sem_pcc);
         }
       } 
 
