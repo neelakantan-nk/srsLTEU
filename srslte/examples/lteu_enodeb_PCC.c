@@ -71,6 +71,7 @@ uint32_t cfi=3;
 uint32_t mcs_idx = 1, last_mcs_idx = 1;
 int nof_frames = -1;
 
+// TODO: decide if these parameters need some default value
 char *rf_args = "";
 char *rf_args_pcc = ""; // RF Args for PCC 
 
@@ -91,10 +92,10 @@ srslte_softbuffer_tx_t softbuffer;
 srslte_regs_t regs;
 srslte_ra_dl_dci_t ra_dl;  
 
-srslte_softbuffer_tx_t softbuffer_PCC; 
+srslte_softbuffer_tx_t softbuffer_pcc; 
 
 cf_t *sf_buffer = NULL, *output_buffer = NULL;
-cf_t *sf_buffer_PCC = NULL, *output_buffer_PCC = NULL; 
+cf_t *sf_buffer_pcc = NULL, *output_buffer_pcc = NULL; 
 
 int sf_n_re, sf_n_samples;
 
@@ -109,10 +110,13 @@ int prbset_num = 1, last_prbset_num = 1;
 int prbset_orig = 0; 
 
 
+// TODO: always update the help for better management
+// TODO: Do we need parameter for duty cycle?
 void usage(char *prog) {
-  printf("Usage: %s [agmfoncvpu]\n", prog);
+  printf("Usage: %s [abgmfoncvpu]\n", prog);
 #ifndef DISABLE_RF
-  printf("\t-a RF args [Default %s]\n", rf_args);
+  printf("\t-a RF args for unlicensed band [Default %s]\n", rf_args);
+  printf("\t-b RF args for licensed band [Default %s]\n", rf_args_pcc);
   printf("\t-l RF amplitude [Default %.2f]\n", rf_amp);
   printf("\t-g RF TX gain [Default %.2f dB]\n", rf_gain);
   printf("\t-f RF TX frequency [Default %.1f MHz]\n", rf_freq / 1000000);
@@ -128,9 +132,11 @@ void usage(char *prog) {
   printf("\t-v [set srslte_verbose to debug, default none]\n");
 }
 
+// TODO: some parameters are same for both RF front ends.
+// Ideally they should be decoupled
 void parse_args(int argc, char **argv) {
   int opt;
-  while ((opt = getopt(argc, argv, "aglfmoncpvu")) != -1) {
+  while ((opt = getopt(argc, argv, "abglfmoncpvu")) != -1) {
     switch (opt) {
     case 'a':
       rf_args = argv[optind];
@@ -194,13 +200,13 @@ void base_init() {
     perror("malloc");
     exit(-1);
   }
- sf_buffer_PCC = srslte_vec_malloc(sizeof(cf_t) * sf_n_re);
-  if (!sf_buffer_PCC) {
+ sf_buffer_pcc = srslte_vec_malloc(sizeof(cf_t) * sf_n_re);
+  if (!sf_buffer_pcc) {
     perror("malloc");
     exit(-1);
   }
-  output_buffer_PCC = srslte_vec_malloc(sizeof(cf_t) * sf_n_samples);
-  if (!output_buffer_PCC) {
+  output_buffer_pcc = srslte_vec_malloc(sizeof(cf_t) * sf_n_samples);
+  if (!output_buffer_pcc) {
     perror("malloc");
     exit(-1);
   }
@@ -294,7 +300,7 @@ void base_init() {
     exit(-1);
   }
 
-  if (srslte_softbuffer_tx_init(&softbuffer_PCC, cell.nof_prb)) {
+  if (srslte_softbuffer_tx_init(&softbuffer_pcc, cell.nof_prb)) {
     fprintf(stderr, "Error initiating soft buffer PCC\n");
     exit(-1);
   }
@@ -317,11 +323,11 @@ void base_free() {
   if (output_buffer) {
     free(output_buffer);
   }
- if (sf_buffer_PCC) {
-    free(sf_buffer_PCC);
+ if (sf_buffer_pcc) {
+    free(sf_buffer_pcc);
   }
-  if (output_buffer_PCC) {
-    free(output_buffer_PCC);
+  if (output_buffer_pcc) {
+    free(output_buffer_pcc);
   }
 
   if (output_file_name) {
@@ -503,8 +509,8 @@ int main(int argc, char **argv) {
   cf_t *sf_symbols[SRSLTE_MAX_PORTS];
   cf_t *slot1_symbols[SRSLTE_MAX_PORTS];
 
-  cf_t *sf_symbols_PCC[SRSLTE_MAX_PORTS];
-  cf_t *slot1_symbols_PCC[SRSLTE_MAX_PORTS];   
+  cf_t *sf_symbols_pcc[SRSLTE_MAX_PORTS];
+  cf_t *slot1_symbols_pcc[SRSLTE_MAX_PORTS];   
 
   srslte_dci_msg_t dci_msg;
   srslte_dci_location_t locations[SRSLTE_NSUBFRAMES_X_FRAME][30];
@@ -547,8 +553,8 @@ int main(int argc, char **argv) {
   for (i = 0; i < SRSLTE_MAX_PORTS; i++) { // now there's only 1 port
     sf_symbols[i] = sf_buffer;
     slot1_symbols[i] = &sf_buffer[SRSLTE_SLOT_LEN_RE(cell.nof_prb, cell.cp)];
-    sf_symbols_PCC[i] = sf_buffer_PCC;
-    slot1_symbols_PCC[i] = &sf_buffer_PCC[SRSLTE_SLOT_LEN_RE(cell.nof_prb, cell.cp)];  }
+    sf_symbols_pcc[i] = sf_buffer_pcc;
+    slot1_symbols_pcc[i] = &sf_buffer_pcc[SRSLTE_SLOT_LEN_RE(cell.nof_prb, cell.cp)];  }
 
 #ifndef DISABLE_RF
 
@@ -611,10 +617,10 @@ int main(int argc, char **argv) {
   nf = 0;
   
   bool send_data = false; 
-  bool send_data_PCC = false; 
+  bool send_data_pcc = false; 
 
   srslte_softbuffer_tx_reset(&softbuffer);
-  srslte_softbuffer_tx_reset(&softbuffer_PCC);
+  srslte_softbuffer_tx_reset(&softbuffer_pcc);
 
 #ifndef DISABLE_RF
   bool start_of_burst = true; 
@@ -623,33 +629,35 @@ int main(int argc, char **argv) {
   while ((nf < nof_frames || nof_frames == -1) && !go_exit) {
     for (sf_idx = 0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1); sf_idx++) {
       bzero(sf_buffer, sizeof(cf_t) * sf_n_re); 
-      bzero(sf_buffer_PCC, sizeof(cf_t) * sf_n_re); 
+      bzero(sf_buffer_pcc, sizeof(cf_t) * sf_n_re); 
 
       // Send PSS and SSS in both SF 0 and SF 5 of PCC; do not send any SS in SCC  
       if (sf_idx == 0 || sf_idx == 5) {
-        srslte_pss_put_slot(pss_signal, sf_buffer_PCC, cell.nof_prb, SRSLTE_CP_NORM);
-        srslte_sss_put_slot(sf_idx ? sss_signal5 : sss_signal0, sf_buffer_PCC, cell.nof_prb,
+        srslte_pss_put_slot(pss_signal, sf_buffer_pcc, cell.nof_prb, SRSLTE_CP_NORM);
+        srslte_sss_put_slot(sf_idx ? sss_signal5 : sss_signal0, sf_buffer_pcc, cell.nof_prb,
             SRSLTE_CP_NORM);
       }
 
       //Reference signal insertion for PCC 
-      srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer_PCC); 
+      srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer_pcc); 
 
       // Assuming transmissions in SF 3 and 4 are active 
+      // TODO: Active subcarrier should probably come from parameters
       // Reference signal insertion  
       if (sf_idx == 3 || sf_idx == 4) {
-      srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer); 
+          srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer); 
       }
 
       // MIB only in SF 0 
+      // FIXME: does secondary channel need MIB?
       srslte_pbch_mib_pack(&cell, sfn, bch_payload);
       if (sf_idx == 0) {
         srslte_pbch_encode(&pbch, bch_payload, slot1_symbols, nf%4);
-        srslte_pbch_encode(&pbch, bch_payload, slot1_symbols_PCC, nf%4);
+        srslte_pbch_encode(&pbch, bch_payload, slot1_symbols_pcc, nf%4);
       }
 
       // PCFICH insertion for PCC (all SFs) 
-      srslte_pcfich_encode(&pcfich, cfi, sf_symbols_PCC, sf_idx); 
+      srslte_pcfich_encode(&pcfich, cfi, sf_symbols_pcc, sf_idx); 
 
       // PCFICH insertion for specific SFs
       if (sf_idx == 3 || sf_idx == 4) {
@@ -663,18 +671,37 @@ int main(int argc, char **argv) {
       
       /* Transmit PDCCH + PDSCH only when there is data to send */
       if (net_port > 0) {
-        //send_data = net_packet_ready; 
-        send_data = false; 
-        send_data_PCC = true; //Always send data in PCC 
-        if (sf_idx == 3 || sf_idx == 4) { //transmit only in 3rd and 7th sub frames
-         send_data = true; 
-         INFO("Inside sf_id block!!\n",0); 
-         } 
-        else { 
-        send_data = false; 
-        } 
+        // // XXX: following tag should be handled carefully
+        // // Port should be ready with data before we can send it.
+        // // Caution: Reading data from port is running in separate thread
+
+        // //send_data = net_packet_ready; 
+        // 
+        // send_data = false; 
+        // send_data_pcc = true; //Always send data in PCC 
+
+        // // TODO: we need a notion of active subframes / duty cycle
+        // if (sf_idx == 3 || sf_idx == 4) { 
+        //   send_data = true; 
+        //   INFO("Inside sf_id block!!\n",0); 
+        // } 
+        // else { 
+        //   send_data = false; 
+        // } 
+
+
+        // Data is available at input port to be sent
+        send_data_pcc = net_packet_ready; 
+        send_data = net_packet_ready; 
+        // Selectively disable the transmission on sec channel
+        if (sf_idx != 3 && sf_idx != 4) { 
+          send_data = false;
+        }
+        if (send_data_pcc) {
+          INFO("Transmitting packet on PCC\n",0);
+        }
         if (send_data) {
-          INFO("Transmitting packet SCC\n",0);
+          INFO("Transmitting packet on SCC\n",0);
         }
       } else {
         INFO("SF: %d, Generating %d random bits\n", sf_idx, pdsch_cfg.grant.mcs.tbs);
@@ -689,6 +716,10 @@ int main(int argc, char **argv) {
         }
       }        
       
+      // TODO: At this point we have limited amount of data in "data" buffer
+      // This data can potentially be sent on both channels (increased throughput)
+      // How should this data be divided between PCC and secondary channel?
+      // If we split the data here, at the UE we would have to rearrange it.
       if (send_data) {
               
         /* Encode PDCCH */
@@ -725,12 +756,12 @@ int main(int argc, char **argv) {
       } 
 
    // Sending data in PCC 
-    if (send_data_PCC) {
+    if (send_data_pcc) {
               
         /* Encode PDCCH */
         INFO("Putting DCI to location: n=%d, L=%d\n", locations[sf_idx][0].ncce, locations[sf_idx][0].L);
         srslte_dci_msg_pack_pdsch(&ra_dl, SRSLTE_DCI_FORMAT1, &dci_msg, cell.nof_prb, false);
-        if (srslte_pdcch_encode(&pdcch, &dci_msg, locations[sf_idx][0], UE_CRNTI, sf_symbols_PCC, sf_idx, cfi)) {
+        if (srslte_pdcch_encode(&pdcch, &dci_msg, locations[sf_idx][0], UE_CRNTI, sf_symbols_pcc, sf_idx, cfi)) {
           fprintf(stderr, "Error encoding DCI message\n");
           exit(-1);
         }
@@ -744,7 +775,7 @@ int main(int argc, char **argv) {
         }
        
         /* Encode PDSCH */
-        if (srslte_pdsch_encode(&pdsch, &pdsch_cfg, &softbuffer_PCC, data, sf_symbols)) {
+        if (srslte_pdsch_encode(&pdsch, &pdsch_cfg, &softbuffer_pcc, data, sf_symbols)) {
           fprintf(stderr, "Error encoding PDSCH\n");
           exit(-1);
         }        
@@ -762,7 +793,7 @@ int main(int argc, char **argv) {
 
       /* Transform to OFDM symbols */
       srslte_ofdm_tx_sf(&ifft, sf_buffer, output_buffer);
-      srslte_ofdm_tx_sf(&ifft, sf_buffer_PCC, output_buffer_PCC);
+      srslte_ofdm_tx_sf(&ifft, sf_buffer_pcc, output_buffer_pcc);
       
       /* send to file or usrp */
       if (output_file_name) {
@@ -777,8 +808,8 @@ int main(int argc, char **argv) {
         srslte_vec_sc_prod_cfc(output_buffer, rf_amp*norm_factor, output_buffer, SRSLTE_SF_LEN_PRB(cell.nof_prb));
         srslte_rf_send2(&rf, output_buffer, sf_n_samples, true, start_of_burst, false);
 
-        srslte_vec_sc_prod_cfc(output_buffer_PCC, rf_amp_pcc*norm_factor, output_buffer_PCC, SRSLTE_SF_LEN_PRB(cell.nof_prb));
-        srslte_rf_send2(&rf_pcc, output_buffer_PCC, sf_n_samples, true, start_of_burst, false);
+        srslte_vec_sc_prod_cfc(output_buffer_pcc, rf_amp_pcc*norm_factor, output_buffer_pcc, SRSLTE_SF_LEN_PRB(cell.nof_prb));
+        srslte_rf_send2(&rf_pcc, output_buffer_pcc, sf_n_samples, true, start_of_burst, false);
 
         start_of_burst=false; 
 #endif
