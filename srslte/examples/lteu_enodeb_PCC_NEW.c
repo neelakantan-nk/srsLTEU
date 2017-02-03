@@ -66,7 +66,7 @@ srslte_cell_t cell = {
 };
   
 int net_port = -1; // -1 generates random dataThat means there is some problem sending samples to the device 
-int net_port_PCC = -1; // Default port for PCC 
+int net_port_pcc = -1; // Default port for PCC 
 
 uint32_t cfi=3;
 uint32_t mcs_idx = 1, last_mcs_idx = 1; 
@@ -105,6 +105,7 @@ cf_t *sf_buffer_pcc = NULL, *output_buffer_pcc = NULL;
 int sf_n_re, sf_n_samples;
 
 pthread_t net_thread; 
+pthread_t net_thread_pcc; 
 void *net_thread_fnc(void *arg);
 sem_t net_sem; 
 sem_t net_sem_pcc; 
@@ -128,7 +129,7 @@ void usage(char *prog) {
   printf("\t-b RF args SCC [Default %s]\n", rf_args);
   printf("\t-l RF TX gain PCC [Default %.2f]\n", rf_gain_pcc);
   printf("\t-g RF TX gain SCC [Default %.2f dB]\n", rf_gain);
-  printf("\t-o RF TX frequency PCC [Default %.1f MHz]\n", rf_freq_PCC / 1000000);
+  printf("\t-o RF TX frequency PCC [Default %.1f MHz]\n", rf_freq_pcc / 1000000);
   printf("\t-f RF TX frequency SCC [Default %.1f MHz]\n", rf_freq / 1000000);
   printf("\t-s SCC - First active Sub Frame [Default %s]\n", sf_start); 
   printf("\t-e SCC - Last active Sub Frame [Default %s]\n", sf_end); 
@@ -137,7 +138,7 @@ void usage(char *prog) {
 #endif
  // printf("\t-n MCS index PCC [Default %d]\n", mcs_idx_pcc);
   printf("\t-m MCS index (common for PCC and SCC) [Default %d]\n", mcs_idx);
-  printf("\t-p listen TCP port for input data PCC [Default %d]\n", net_port_PCC);
+  printf("\t-p listen TCP port for input data PCC [Default %d]\n", net_port_pcc);
   printf("\t-u listen TCP port for input data SCC (-1 is random) [Default %d]\n", net_port);
   printf("\t-v [set srslte_verbose to debug, default none]\n");
 }
@@ -258,24 +259,30 @@ void base_init() {
       fprintf(stderr, "Error creating input UDP socket for SCC at port %d\n", net_port);
       exit(-1);
     }
-
-    if (net_port_pcc > 0) {
-    if (srslte_netsource_init(&net_source_pcc, "0.0.0.0", net_port_pcc, SRSLTE_NETSOURCE_TCP)) {
-      fprintf(stderr, "Error creating input UDP socket for PCC at port %d\n", net_port);
-      exit(-1);
-    }
-
     if (null_file_sink) {
       if (srslte_netsink_init(&net_sink, "127.0.0.1", net_port+1, SRSLTE_NETSINK_TCP)) {
         fprintf(stderr, "Error sink\n");
         exit(-1);
-      }   
+      } 
+    }
+     if (sem_init(&net_sem, 0, 1)) {
+      perror("sem_init");
+      exit(-1);
+    } 
+    } 
+
+  if (net_port_pcc > 0) {
+     if (srslte_netsource_init(&net_source, "0.0.0.0", net_port, SRSLTE_NETSOURCE_TCP)) {
+         fprintf(stderr, "Error creating input UDP socket for SCC at port %d\n", net_port);
+          exit(-1);
+       }
+     if (null_file_sink) {
       if (srslte_netsink_init(&net_sink_pcc, "127.0.0.1", net_port_pcc+1, SRSLTE_NETSINK_TCP)) {
         fprintf(stderr, "Error sink\n");
         exit(-1);
       }  
     }
-    if (sem_init(&net_sem, 0, 1)) {
+    if (sem_init(&net_sem_pcc, 0, 1)) {
       perror("sem_init");
       exit(-1);
     }
