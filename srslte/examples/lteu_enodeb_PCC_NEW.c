@@ -272,8 +272,8 @@ void base_init() {
     } 
 
   if (net_port_pcc > 0) {
-     if (srslte_netsource_init(&net_source, "0.0.0.0", net_port, SRSLTE_NETSOURCE_TCP)) {
-         fprintf(stderr, "Error creating input UDP socket for SCC at port %d\n", net_port);
+     if (srslte_netsource_init(&net_source_pcc, "0.0.0.0", net_port_pcc, SRSLTE_NETSOURCE_TCP)) {
+         fprintf(stderr, "Error creating input UDP socket for PCC at port %d\n", net_port);
           exit(-1);
        }
      if (null_file_sink) {
