@@ -837,6 +837,8 @@ int main(int argc, char **argv) {
           sem_post(&net_sem_pcc);
         }
       } 
+      /* Transform to OFDM symbols */
+      srslte_ofdm_tx_sf(&ifft, sf_buffer_pcc, output_buffer_pcc);
 
       // ------------ Sending data in SCC --------------
       if (send_data) {
@@ -876,7 +878,6 @@ int main(int argc, char **argv) {
 
       /* Transform to OFDM symbols */
       srslte_ofdm_tx_sf(&ifft, sf_buffer, output_buffer);
-      srslte_ofdm_tx_sf(&ifft, sf_buffer_pcc, output_buffer_pcc);
 
       /* send to file or usrp */
       if (output_file_name) {
@@ -888,11 +889,12 @@ int main(int argc, char **argv) {
 #ifndef DISABLE_RF
         // FIXME
         float norm_factor = (float) cell.nof_prb/15/sqrtf(pdsch_cfg.grant.nof_prb);
-        srslte_vec_sc_prod_cfc(output_buffer, rf_amp*norm_factor, output_buffer, SRSLTE_SF_LEN_PRB(cell.nof_prb));
-        srslte_rf_send2(&rf, output_buffer, sf_n_samples, true, start_of_burst, false);
 
         srslte_vec_sc_prod_cfc(output_buffer_pcc, rf_amp_pcc*norm_factor, output_buffer_pcc, SRSLTE_SF_LEN_PRB(cell.nof_prb));
         srslte_rf_send2(&rf_pcc, output_buffer_pcc, sf_n_samples, true, start_of_burst, false);
+
+        srslte_vec_sc_prod_cfc(output_buffer, rf_amp*norm_factor, output_buffer, SRSLTE_SF_LEN_PRB(cell.nof_prb));
+        srslte_rf_send2(&rf, output_buffer, sf_n_samples, true, start_of_burst, false);
 
         start_of_burst=false; 
 #endif

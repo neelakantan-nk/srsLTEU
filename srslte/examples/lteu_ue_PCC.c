@@ -168,7 +168,7 @@ void usage(prog_args_t *args, char *prog) {
 void parse_args(prog_args_t *args, int argc, char **argv) {
   int opt;
   args_default(args);
-  while ((opt = getopt(argc, argv, "aoglipPcOCtdDnvrfFuUsS")) != -1) {
+  while ((opt = getopt(argc, argv, "aAoglipPcOCtdDnvrfFuUsS")) != -1) {
     switch (opt) {
     case 'i':
       args->input_file_name = argv[optind];
@@ -191,7 +191,7 @@ void parse_args(prog_args_t *args, int argc, char **argv) {
     case 'a':
       args->rf_args_pcc = argv[optind];
       break;
-    case 'b':
+    case 'A':
       args->rf_args_scc = argv[optind];
       break;
     case 'g':
@@ -279,14 +279,18 @@ extern float mean_exec_time;
 
 enum receiver_state { DECODE_MIB, DECODE_PDSCH} state; 
 
-srslte_ue_dl_t ue_dl; 
+// TODO : which parameter should be decoupled between PCC and SCC
+srslte_ue_dl_t ue_dl_pcc; 
+srslte_ue_dl_t ue_dl_scc; 
 srslte_ue_sync_t ue_sync; 
 prog_args_t prog_args; 
 
 uint32_t sfn = 0; // system frame number
-cf_t *sf_buffer = NULL; 
+cf_t *sf_buffer_pcc = NULL; 
+cf_t *sf_buffer_scc = NULL; 
 srslte_netsink_t net_sink, net_sink_signal; 
 
+//-----------------------------MAIN-------------------------------//
 int main(int argc, char **argv) {
   int ret; 
   srslte_cell_t cell;  
@@ -371,6 +375,7 @@ int main(int argc, char **argv) {
     srslte_rf_rx_wait_lo_locked(&rf_scc);
 
     /* -------------- Start looking for cell -------------- */
+    // XXX: searching only in PCC
     uint32_t ntrial=0; 
     do {
       ret = rf_search_and_decode_mib(&rf_pcc, &cell_detect_config, prog_args.force_N_id_2, &cell, &cfo);
@@ -393,13 +398,21 @@ int main(int argc, char **argv) {
     if (srate != -1) {  
       if (srate < 10e6) {          
         srslte_rf_set_master_clock_rate(&rf_pcc, 4*srate);        
+        srslte_rf_set_master_clock_rate(&rf_scc, 4*srate);        
       } else {
         srslte_rf_set_master_clock_rate(&rf_pcc, srate);        
+        srslte_rf_set_master_clock_rate(&rf_scc, srate);        
       }
       printf("Setting sampling rate %.2f MHz\n", (float) srate/1000000);
       float srate_rf = srslte_rf_set_rx_srate(&rf_pcc, (double) srate);
       if (srate_rf != srate) {
-        fprintf(stderr, "Could not set sampling rate\n");
+        fprintf(stderr, "Could not set sampling rate for PCC\n");
+        exit(-1);
+      }
+      
+      srate_rf = srslte_rf_set_rx_srate(&rf_scc, (double) srate);
+      if (srate_rf != srate) {
+        fprintf(stderr, "Could not set sampling rate for SCC\n");
         exit(-1);
       }
     } else {
@@ -410,6 +423,8 @@ int main(int argc, char **argv) {
     INFO("Stopping RF and flushing buffer...\r",0);
     srslte_rf_stop_rx_stream(&rf_pcc);
     srslte_rf_flush_buffer(&rf_pcc);
+    srslte_rf_stop_rx_stream(&rf_scc);
+    srslte_rf_flush_buffer(&rf_scc);
   }
 #endif
   
@@ -443,13 +458,18 @@ int main(int argc, char **argv) {
     exit(-1);
   }    
 
-  if (srslte_ue_dl_init(&ue_dl, cell)) {  // This is the User RNTI
+  if (srslte_ue_dl_init(&ue_dl_pcc, cell)) {  // This is the User RNTI
+    fprintf(stderr, "Error initiating UE downlink processing module\n");
+    exit(-1);
+  }
+  if (srslte_ue_dl_init(&ue_dl_scc, cell)) {  // This is the User RNTI
     fprintf(stderr, "Error initiating UE downlink processing module\n");
     exit(-1);
   }
   
   /* Configure downlink receiver for the SI-RNTI since will be the only one we'll use */
-  srslte_ue_dl_set_rnti(&ue_dl, prog_args.rnti); 
+  srslte_ue_dl_set_rnti(&ue_dl_pcc, prog_args.rnti); 
+  srslte_ue_dl_set_rnti(&ue_dl_scc, prog_args.rnti); 
   
   /* Initialize subframe counter */
   sf_cnt = 0;
@@ -465,6 +485,7 @@ int main(int argc, char **argv) {
 #ifndef DISABLE_RF
   if (!prog_args.input_file_name) {
     srslte_rf_start_rx_stream(&rf_pcc);
+    srslte_rf_start_rx_stream(&rf_scc);
   }
 #endif
     
@@ -491,17 +512,21 @@ int main(int argc, char **argv) {
   srslte_pbch_decode_reset(&ue_mib.pbch);
             
   INFO("\nEntering main loop...\n\n", 0);
-  /* Main loop */
+
+
+  /*----------------- Main while loop -----------------*/
   while (!go_exit && (sf_cnt < prog_args.nof_subframes || prog_args.nof_subframes == -1)) {
     
-    ret = srslte_ue_sync_get_buffer(&ue_sync, &sf_buffer);
+    ret = srslte_ue_sync_get_buffer(&ue_sync, &sf_buffer_pcc);
     if (ret < 0) {
       fprintf(stderr, "Error calling srslte_ue_sync_work()\n");
     }
 
 #ifdef CORRECT_SAMPLE_OFFSET
+    // XXX : what if frequency offset is different in PCC and SCC
     float sample_offset = (float) srslte_ue_sync_get_last_sample_offset(&ue_sync)+srslte_ue_sync_get_sfo(&ue_sync)/1000; 
-    srslte_ue_dl_set_sample_offset(&ue_dl, sample_offset);
+    srslte_ue_dl_set_sample_offset(&ue_dl_pcc, sample_offset);
+    srslte_ue_dl_set_sample_offset(&ue_dl_scc, sample_offset);
 #endif
     
     /* srslte_ue_sync_get_buffer returns 1 if successfully read 1 aligned subframe */
@@ -509,7 +534,7 @@ int main(int argc, char **argv) {
       switch (state) {
         case DECODE_MIB:
           if (srslte_ue_sync_get_sfidx(&ue_sync) == 0) {
-            n = srslte_ue_mib_decode(&ue_mib, sf_buffer, bch_payload, NULL, &sfn_offset);
+            n = srslte_ue_mib_decode(&ue_mib, sf_buffer_pcc, bch_payload, NULL, &sfn_offset);
             if (n < 0) {
               fprintf(stderr, "Error decoding UE MIB\n");
               exit(-1);
@@ -535,8 +560,8 @@ int main(int argc, char **argv) {
           }
           if (decode_pdsch) {            
             INFO("Attempting DL decode SFN=%d\n", sfn);
-            n = srslte_ue_dl_decode(&ue_dl, 
-                                    &sf_buffer[prog_args.time_offset], 
+            n = srslte_ue_dl_decode(&ue_dl_pcc, 
+                                    &sf_buffer_pcc[prog_args.time_offset], 
                                     data, 
                                     sfn*10+srslte_ue_sync_get_sfidx(&ue_sync));
           
@@ -550,26 +575,58 @@ int main(int argc, char **argv) {
               }
               
               #ifdef PRINT_CHANGE_SCHEDULIGN
-              if (ue_dl.dl_dci.mcs_idx         != old_dl_dci.mcs_idx           || 
-                  memcmp(&ue_dl.dl_dci.type0_alloc, &old_dl_dci.type0_alloc, sizeof(srslte_ra_type0_t)) ||
-                  memcmp(&ue_dl.dl_dci.type1_alloc, &old_dl_dci.type1_alloc, sizeof(srslte_ra_type1_t)) ||
-                  memcmp(&ue_dl.dl_dci.type2_alloc, &old_dl_dci.type2_alloc, sizeof(srslte_ra_type2_t)))
+              if (ue_dl_pcc.dl_dci.mcs_idx         != old_dl_dci.mcs_idx           || 
+                  memcmp(&ue_dl_pcc.dl_dci.type0_alloc, &old_dl_dci.type0_alloc, sizeof(srslte_ra_type0_t)) ||
+                  memcmp(&ue_dl_pcc.dl_dci.type1_alloc, &old_dl_dci.type1_alloc, sizeof(srslte_ra_type1_t)) ||
+                  memcmp(&ue_dl_pcc.dl_dci.type2_alloc, &old_dl_dci.type2_alloc, sizeof(srslte_ra_type2_t)))
               {
-                memcpy(&old_dl_dci, &ue_dl.dl_dci, sizeof(srslte_ra_dl_dci_t));
+                memcpy(&old_dl_dci, &ue_dl_pcc.dl_dci, sizeof(srslte_ra_dl_dci_t));
                 fflush(stdout);
-                printf("Format: %s\n", srslte_dci_format_string(ue_dl.dci_format));
+                printf("Format: %s\n", srslte_dci_format_string(ue_dl_pcc.dci_format));
                 srslte_ra_pdsch_fprint(stdout, &old_dl_dci, cell.nof_prb);
-                srslte_ra_dl_grant_fprint(stdout, &ue_dl.pdsch_cfg.grant);
+                srslte_ra_dl_grant_fprint(stdout, &ue_dl_pcc.pdsch_cfg.grant);
               }
               #endif
 
             } 
-                                    
+             
+            // ----------------------------------------------------------
+            INFO("Attempting SCC DL decode SFN=%d\n", sfn);
+            n = srslte_ue_dl_decode(&ue_dl_scc, 
+                                    &sf_buffer_scc[prog_args.time_offset], 
+                                    data, 
+                                    sfn*10+srslte_ue_sync_get_sfidx(&ue_sync));
+          
+            if (n < 0) {
+             // fprintf(stderr, "Error decoding UE DL\n");fflush(stdout);
+            } else if (n > 0) {
+              
+              /* Send data if socket active */
+              if (prog_args.net_port > 0) {
+                srslte_netsink_write(&net_sink, data, 1+(n-1)/8);
+              }
+              
+              #ifdef PRINT_CHANGE_SCHEDULIGN
+              if (ue_dl_scc.dl_dci.mcs_idx         != old_dl_dci.mcs_idx           || 
+                  memcmp(&ue_dl_scc.dl_dci.type0_alloc, &old_dl_dci.type0_alloc, sizeof(srslte_ra_type0_t)) ||
+                  memcmp(&ue_dl_scc.dl_dci.type1_alloc, &old_dl_dci.type1_alloc, sizeof(srslte_ra_type1_t)) ||
+                  memcmp(&ue_dl_scc.dl_dci.type2_alloc, &old_dl_dci.type2_alloc, sizeof(srslte_ra_type2_t)))
+              {
+                memcpy(&old_dl_dci, &ue_dl_scc.dl_dci, sizeof(srslte_ra_dl_dci_t));
+                fflush(stdout);
+                printf("Format: %s\n", srslte_dci_format_string(ue_dl_scc.dci_format));
+                srslte_ra_pdsch_fprint(stdout, &old_dl_dci, cell.nof_prb);
+                srslte_ra_dl_grant_fprint(stdout, &ue_dl_scc.pdsch_cfg.grant);
+              }
+              #endif
+
+            } 
+            // ----------------------------------------------------------
             nof_trials++; 
             
-            rsrq = SRSLTE_VEC_EMA(srslte_chest_dl_get_rsrq(&ue_dl.chest), rsrq, 0.1);
-            rsrp = SRSLTE_VEC_EMA(srslte_chest_dl_get_rsrp(&ue_dl.chest), rsrp, 0.05);      
-            noise = SRSLTE_VEC_EMA(srslte_chest_dl_get_noise_estimate(&ue_dl.chest), noise, 0.05);      
+            rsrq = SRSLTE_VEC_EMA(srslte_chest_dl_get_rsrq(&ue_dl_pcc.chest), rsrq, 0.1);
+            rsrp = SRSLTE_VEC_EMA(srslte_chest_dl_get_rsrp(&ue_dl_pcc.chest), rsrp, 0.05);      
+            noise = SRSLTE_VEC_EMA(srslte_chest_dl_get_noise_estimate(&ue_dl_pcc.chest), noise, 0.05);      
             nframes++;
             if (isnan(rsrq)) {
               rsrq = 0; 
@@ -594,8 +651,8 @@ int main(int argc, char **argv) {
                    
                   srslte_ue_sync_get_cfo(&ue_sync)/1000,
                   10*log10(rsrp/noise), 
-                  100*(1-(float) ue_dl.nof_detected/nof_trials), 
-                  (float) 100*ue_dl.pkt_errors/ue_dl.pkts_total);                        
+                  100*(1-(float) ue_dl_pcc.nof_detected/nof_trials), 
+                  (float) 100*ue_dl_pcc.pkt_errors/ue_dl_pcc.pkts_total);                        
           }
           break;
       }
@@ -604,9 +661,9 @@ int main(int argc, char **argv) {
         if (sfn == 1024) {
           sfn = 0; 
           printf("\n");
-          ue_dl.pkt_errors = 0; 
-          ue_dl.pkts_total = 0; 
-          ue_dl.nof_detected = 0;           
+          ue_dl_pcc.pkt_errors = 0; 
+          ue_dl_pcc.pkts_total = 0; 
+          ue_dl_pcc.nof_detected = 0;           
           nof_trials = 0; 
         } 
       }
@@ -634,7 +691,7 @@ int main(int argc, char **argv) {
     }
         
     sf_cnt++;                  
-  } // Main loop
+  } // Main while loop
   
 #ifndef DISABLE_GRAPHICS
   if (!prog_args.disable_plots) {
@@ -644,13 +701,14 @@ int main(int argc, char **argv) {
     }
   }
 #endif
-  srslte_ue_dl_free(&ue_dl);
+  srslte_ue_dl_free(&ue_dl_pcc);
   srslte_ue_sync_free(&ue_sync);
   
 #ifndef DISABLE_RF
   if (!prog_args.input_file_name) {
     srslte_ue_mib_free(&ue_mib);
     srslte_rf_close(&rf_pcc);    
+    srslte_rf_close(&rf_scc);    
   }
 #endif
   printf("\nBye\n");
@@ -679,7 +737,7 @@ float tmp_plot3[110*15*2048];
 
 void *plot_thread_run(void *arg) {
   int i;
-  uint32_t nof_re = SRSLTE_SF_LEN_RE(ue_dl.cell.nof_prb, ue_dl.cell.cp);
+  uint32_t nof_re = SRSLTE_SF_LEN_RE(ue_dl_pcc.cell.nof_prb, ue_dl_pcc.cell.cp);
     
   
   sdrgui_init();
@@ -714,19 +772,19 @@ void *plot_thread_run(void *arg) {
   while(1) {
     sem_wait(&plot_sem);
     
-    uint32_t nof_symbols = ue_dl.pdsch_cfg.nbits.nof_re;
+    uint32_t nof_symbols = ue_dl_pcc.pdsch_cfg.nbits.nof_re;
     if (!prog_args.disable_plots_except_constellation) {      
       for (i = 0; i < nof_re; i++) {
-        tmp_plot[i] = 20 * log10f(cabsf(ue_dl.sf_symbols[i]));
+        tmp_plot[i] = 20 * log10f(cabsf(ue_dl_pcc.sf_symbols[i]));
         if (isinf(tmp_plot[i])) {
           tmp_plot[i] = -80;
         }
       }
-      int sz = srslte_symbol_sz(ue_dl.cell.nof_prb);
+      int sz = srslte_symbol_sz(ue_dl_pcc.cell.nof_prb);
       bzero(tmp_plot2, sizeof(float)*sz);
-      int g = (sz - 12*ue_dl.cell.nof_prb)/2;
-      for (i = 0; i < 12*ue_dl.cell.nof_prb; i++) {
-        tmp_plot2[g+i] = 20 * log10(cabs(ue_dl.ce[0][i]));
+      int g = (sz - 12*ue_dl_pcc.cell.nof_prb)/2;
+      for (i = 0; i < 12*ue_dl_pcc.cell.nof_prb; i++) {
+        tmp_plot2[g+i] = 20 * log10(cabs(ue_dl_pcc.ce[0][i]));
         if (isinf(tmp_plot2[g+i])) {
           tmp_plot2[g+i] = -80;
         }
@@ -753,14 +811,14 @@ void *plot_thread_run(void *arg) {
         
       }
       
-      plot_scatter_setNewData(&pscatequal_pdcch, ue_dl.pdcch.d, 36*ue_dl.pdcch.nof_cce);
+      plot_scatter_setNewData(&pscatequal_pdcch, ue_dl_pcc.pdcch.d, 36*ue_dl_pcc.pdcch.nof_cce);
     }
     
-    plot_scatter_setNewData(&pscatequal, ue_dl.pdsch.d, nof_symbols);
+    plot_scatter_setNewData(&pscatequal, ue_dl_pcc.pdsch.d, nof_symbols);
     
     if (plot_sf_idx == 1) {
       if (prog_args.net_port_signal > 0) {
-        srslte_netsink_write(&net_sink_signal, &sf_buffer[srslte_ue_sync_sf_len(&ue_sync)/7], 
+        srslte_netsink_write(&net_sink_signal, &sf_buffer_pcc[srslte_ue_sync_sf_len(&ue_sync)/7], 
                             srslte_ue_sync_sf_len(&ue_sync)); 
       }
     }
