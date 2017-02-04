@@ -628,7 +628,8 @@ int main(int argc, char **argv) {
     sf_symbols[i] = sf_buffer;
     slot1_symbols[i] = &sf_buffer[SRSLTE_SLOT_LEN_RE(cell.nof_prb, cell.cp)];
     sf_symbols_pcc[i] = sf_buffer_pcc;
-    slot1_symbols_pcc[i] = &sf_buffer_pcc[SRSLTE_SLOT_LEN_RE(cell.nof_prb, cell.cp)];  }
+    slot1_symbols_pcc[i] = &sf_buffer_pcc[SRSLTE_SLOT_LEN_RE(cell.nof_prb, cell.cp)];  
+  }
 
 #ifndef DISABLE_RF
 
@@ -709,7 +710,9 @@ int main(int argc, char **argv) {
   
   while ((nf < nof_frames || nof_frames == -1) && !go_exit) {
     for (sf_idx = 0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1); sf_idx++) {
-      bzero(sf_buffer, sizeof(cf_t) * sf_n_re); 
+
+      // --------------- Primary channel ------------------
+
       bzero(sf_buffer_pcc, sizeof(cf_t) * sf_n_re); 
 
       // Send PSS and SSS in both SF 0 and SF 5 of PCC; do not send any SS in SCC  
@@ -722,69 +725,26 @@ int main(int argc, char **argv) {
       //Reference signal insertion for PCC 
       srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer_pcc); 
 
-      // Assuming transmissions in SF 3 and 4 are active 
-      // TODO: Active subcarrier should probably come from parameters
-      // Reference signal insertion  
-      if (sf_idx >= sf_start && sf_idx <= sf_end) {
-          srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer); 
-      }
-
       // MIB only in SF 0 
-      // FIXME: does secondary channel need MIB?
       srslte_pbch_mib_pack(&cell, sfn, bch_payload);
       if (sf_idx == 0) {
-        srslte_pbch_encode(&pbch, bch_payload, slot1_symbols, nf%4);
-        //srslte_pbch_encode(&pbch, bch_payload, slot1_symbols_pcc, nf%4);
+        // srslte_pbch_encode(&pbch, bch_payload, slot1_symbols, nf%4);
+        srslte_pbch_encode(&pbch, bch_payload, slot1_symbols_pcc, nf%4);
       }
 
       // PCFICH insertion for PCC (all SFs) 
       srslte_pcfich_encode(&pcfich, cfi, sf_symbols_pcc, sf_idx); 
 
-      // PCFICH insertion for specific SFs
-      if (sf_idx >= sf_start || sf_idx <= sf_end) {
-      srslte_pcfich_encode(&pcfich, cfi, sf_symbols, sf_idx); 
-      }        
-
-      /* Update DL resource allocation from control port */
-      if (update_control(sf_idx)) {
-        fprintf(stderr, "Error updating parameters from control port\n");
-      }
-      
       /* Transmit PDCCH + PDSCH only when there is data to send */
       if (net_port > 0) {
-        // // XXX: following tag should be handled carefully
-        // // Port should be ready with data before we can send it.
-        // // Caution: Reading data from port is running in separate thread
-
-        // //send_data = net_packet_ready; 
-        // 
-        // send_data = false; 
-        // send_data_pcc = true; //Always send data in PCC 
-
-        // // TODO: we need a notion of active subframes / duty cycle
-        // if (sf_idx == 3 || sf_idx == 4) { 
-        //   send_data = true; 
-        //   INFO("Inside sf_id block!!\n",0); 
-        // } 
-        // else { 
-        //   send_data = false; 
-        // } 
-
-
         // Data is available at input port to be sent
         send_data_pcc = net_packet_ready_pcc; 
-        send_data = net_packet_ready; 
         // Selectively disable the transmission on sec channel
-        if (sf_idx < sf_start || sf_idx > sf_end) { 
-          send_data = false;
-        }
         if (send_data_pcc) {
           INFO("Transmitting packet on PCC\n",0);
         }
-        if (send_data) {
-          INFO("Transmitting packet on SCC\n",0);
-        }
       } else {
+        // TODO: Modify this correctly
         INFO("SF: %d, Generating %d random bits\n", sf_idx, pdsch_cfg.grant.mcs.tbs);
         for (i=0;i<pdsch_cfg.grant.mcs.tbs/8;i++) {
           data[i] = rand()%256;
@@ -796,49 +756,54 @@ int main(int argc, char **argv) {
           send_data = false;           
         }
       }        
-      
-      // TODO: At this point we have limited amount of data in "data" buffer
-      // This data can potentially be sent on both channels (increased throughput)
-      // How should this data be divided between PCC and secondary channel?
-      // If we split the data here, at the UE we would have to rearrange it.
-      if (send_data) {
-              
-        /* Encode PDCCH */
-        INFO("Putting DCI to location: n=%d, L=%d\n", locations[sf_idx][0].ncce, locations[sf_idx][0].L);
-        srslte_dci_msg_pack_pdsch(&ra_dl, SRSLTE_DCI_FORMAT1, &dci_msg, cell.nof_prb, false);
-        if (srslte_pdcch_encode(&pdcch, &dci_msg, locations[sf_idx][0], UE_CRNTI, sf_symbols, sf_idx, cfi)) {
-          fprintf(stderr, "Error encoding DCI message\n");
-          exit(-1);
-        }
 
-        /* Configure pdsch_cfg parameters */
-        srslte_ra_dl_grant_t grant; 
-        srslte_ra_dl_dci_to_grant(&ra_dl, cell.nof_prb, UE_CRNTI, &grant);        
-        if (srslte_pdsch_cfg(&pdsch_cfg, cell, &grant, cfi, sf_idx, 0)) {
-          fprintf(stderr, "Error configuring PDSCH\n");
-          exit(-1);
-        }
-       
-        /* Encode PDSCH */
-        if (srslte_pdsch_encode(&pdsch, &pdsch_cfg, &softbuffer, data, sf_symbols)) {
-          fprintf(stderr, "Error encoding PDSCH\n");
-          exit(-1);
-        }        
-        if (net_port > 0 && net_packet_ready) {
-          if (null_file_sink) {
-            srslte_bit_pack_vector(data, data_tmp, pdsch_cfg.grant.mcs.tbs);
-            if (srslte_netsink_write(&net_sink, data_tmp, 1+(pdsch_cfg.grant.mcs.tbs-1)/8) < 0) {
-              fprintf(stderr, "Error sending data through UDP socket\n");
-            }            
-          }
-          net_packet_ready = false; 
-          sem_post(&net_sem);
-        }
-      } 
+      // ---------------- Secondary channel -------------------
+      bzero(sf_buffer, sizeof(cf_t) * sf_n_re); 
 
-   // Sending data in PCC 
-    if (send_data_pcc) {
-              
+      // TODO: Active subcarrier should probably come from parameters
+      // Reference signal insertion  
+      if (sf_idx >= sf_start && sf_idx <= sf_end) {
+        srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer); 
+      }
+
+      // PCFICH insertion for specific SFs
+      if (sf_idx >= sf_start || sf_idx <= sf_end) {
+        srslte_pcfich_encode(&pcfich, cfi, sf_symbols, sf_idx); 
+      }        
+
+      /* Update DL resource allocation from control port */
+      if (update_control(sf_idx)) {
+        fprintf(stderr, "Error updating parameters from control port\n");
+      }
+
+      /* Transmit PDCCH + PDSCH only when there is data to send */
+      if (net_port > 0) {
+        // Data is available at input port to be sent
+        send_data = net_packet_ready; 
+        // Selectively disable the transmission on sec channel
+        if (sf_idx < sf_start || sf_idx > sf_end) { 
+          send_data = false;
+        }
+        if (send_data) {
+          INFO("Transmitting packet on SCC\n",0);
+        }
+      } else {
+        // TODO: Modify this correctly
+        INFO("SF: %d, Generating %d random bits\n", sf_idx, pdsch_cfg.grant.mcs.tbs);
+        for (i=0;i<pdsch_cfg.grant.mcs.tbs/8;i++) {
+          data[i] = rand()%256;
+        }
+        /* Uncomment this to transmit on sf 0 and 5 only  */
+        if (sf_idx != 0 && sf_idx != 5) {
+          send_data = true; 
+        } else {
+          send_data = false;           
+        }
+      }        
+
+      // ------------ Sending data in PCC --------------
+      if (send_data_pcc) {
+
         /* Encode PDCCH */
         INFO("Putting DCI to location: n=%d, L=%d\n", locations[sf_idx][0].ncce, locations[sf_idx][0].L);
         srslte_dci_msg_pack_pdsch(&ra_dl, SRSLTE_DCI_FORMAT1, &dci_msg, cell.nof_prb, false);
@@ -847,6 +812,7 @@ int main(int argc, char **argv) {
           exit(-1);
         }
 
+        // FIXME: The configuration parameters seem to be same as SCC
         /* Configure pdsch_cfg parameters */
         srslte_ra_dl_grant_t grant; 
         srslte_ra_dl_dci_to_grant(&ra_dl, cell.nof_prb, UE_CRNTI, &grant);        
@@ -854,7 +820,7 @@ int main(int argc, char **argv) {
           fprintf(stderr, "Error configuring PDSCH\n");
           exit(-1);
         }
-       
+
         /* Encode PDSCH */
         if (srslte_pdsch_encode(&pdsch, &pdsch_cfg, &softbuffer_pcc, data_pcc, sf_symbols)) {
           fprintf(stderr, "Error encoding PDSCH\n");
@@ -872,10 +838,46 @@ int main(int argc, char **argv) {
         }
       } 
 
+      // ------------ Sending data in SCC --------------
+      if (send_data) {
+
+        /* Encode PDCCH */
+        INFO("Putting DCI to location: n=%d, L=%d\n", locations[sf_idx][0].ncce, locations[sf_idx][0].L);
+        srslte_dci_msg_pack_pdsch(&ra_dl, SRSLTE_DCI_FORMAT1, &dci_msg, cell.nof_prb, false);
+        if (srslte_pdcch_encode(&pdcch, &dci_msg, locations[sf_idx][0], UE_CRNTI, sf_symbols, sf_idx, cfi)) {
+          fprintf(stderr, "Error encoding DCI message\n");
+          exit(-1);
+        }
+
+        /* Configure pdsch_cfg parameters */
+        srslte_ra_dl_grant_t grant; 
+        srslte_ra_dl_dci_to_grant(&ra_dl, cell.nof_prb, UE_CRNTI, &grant);        
+        if (srslte_pdsch_cfg(&pdsch_cfg, cell, &grant, cfi, sf_idx, 0)) {
+          fprintf(stderr, "Error configuring PDSCH\n");
+          exit(-1);
+        }
+
+        /* Encode PDSCH */
+        if (srslte_pdsch_encode(&pdsch, &pdsch_cfg, &softbuffer, data, sf_symbols)) {
+          fprintf(stderr, "Error encoding PDSCH\n");
+          exit(-1);
+        }        
+        if (net_port > 0 && net_packet_ready) {
+          if (null_file_sink) {
+            srslte_bit_pack_vector(data, data_tmp, pdsch_cfg.grant.mcs.tbs);
+            if (srslte_netsink_write(&net_sink, data_tmp, 1+(pdsch_cfg.grant.mcs.tbs-1)/8) < 0) {
+              fprintf(stderr, "Error sending data through UDP socket\n");
+            }            
+          }
+          net_packet_ready = false; 
+          sem_post(&net_sem);
+        }
+      } 
+
       /* Transform to OFDM symbols */
       srslte_ofdm_tx_sf(&ifft, sf_buffer, output_buffer);
       srslte_ofdm_tx_sf(&ifft, sf_buffer_pcc, output_buffer_pcc);
-      
+
       /* send to file or usrp */
       if (output_file_name) {
         if (!null_file_sink) {
