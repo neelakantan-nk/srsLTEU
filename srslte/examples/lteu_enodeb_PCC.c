@@ -131,8 +131,8 @@ void usage(char *prog) {
   printf("\t-g RF TX gain SCC [Default %.2f dB]\n", rf_gain);
   printf("\t-o RF TX frequency PCC [Default %.1f MHz]\n", rf_freq_pcc / 1000000);
   printf("\t-f RF TX frequency SCC [Default %.1f MHz]\n", rf_freq / 1000000);
-  printf("\t-s SCC - First active Sub Frame [Default %s]\n", sf_start); 
-  printf("\t-e SCC - Last active Sub Frame [Default %s]\n", sf_end); 
+  printf("\t-s SCC - First active Sub Frame [Default %d]\n", sf_start); 
+  printf("\t-e SCC - Last active Sub Frame [Default %d]\n", sf_end); 
 #else
   printf("\t   RF is disabled.\n");
 #endif
@@ -653,11 +653,13 @@ int main(int argc, char **argv) {
       }
       printf("Setting sampling rate %.2f MHz\n", (float) srate/1000000);
       float srate_rf = srslte_rf_set_tx_srate(&rf, (double) srate);
-      float srate_rf_pcc = srslte_rf_set_tx_srate(&rf_pcc,(double)srate);
-      if (srate_rf != srate) {
-        fprintf(stderr, "Could not set sampling rate\n");
-        exit(-1);
-      }
+      float srate_rf_pcc = srslte_rf_set_tx_srate(&rf_pcc,(double)srate); 
+
+      /** Commenting out exiting fucntion if asked sample rate is not met due to USRP restrictions **/ 
+      //if (srate_rf != srate) {
+        //fprintf(stderr, "Could not set sampling rate\n");
+        //exit(-1);
+      //}
     } else {
       fprintf(stderr, "Invalid number of PRB %d\n", cell.nof_prb);
       exit(-1);

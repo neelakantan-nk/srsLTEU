@@ -124,9 +124,9 @@ void args_default(prog_args_t *args) {
 #else
   args->rf_gain = 50.0; 
 #endif
-  args->net_port_pcc = -1; 
+  args->net_port_pcc = 5001; // Hard coded the port for PCC 
   args->net_address_pcc = "127.0.0.1";
-  args->net_port_scc = -1; 
+  args->net_port_scc = 5002; // Hard coded the port for SCC 
   args->net_address_scc = "127.0.0.1";
   args->net_port_signal = -1; 
   args->net_address_signal = "127.0.0.1";
@@ -170,33 +170,8 @@ void usage(prog_args_t *args, char *prog) {
 }
 
 void parse_args(prog_args_t *args, int argc, char **argv) {
-  int opt, longopt;
+  int opt;
   args_default(args);
-  // // TODO : delete following variables
-  // int nof_subframes;
-  // bool disable_plots;
-  // bool disable_plots_except_constellation;
-  // bool disable_cfo; 
-  // uint32_t time_offset; 
-  // int force_N_id_2;
-  // uint16_t rnti;
-  // char *input_file_name;
-  // int file_offset_time; 
-  // float file_offset_freq;
-  // uint32_t file_nof_prb;
-  // uint32_t file_nof_ports;
-  // uint32_t file_cell_id;
-  // char *rf_args_pcc; 
-  // char *rf_args_scc; 
-  // double rf_freq_pcc; 
-  // double rf_freq_scc; 
-  // float rf_gain;
-  // int net_port_pcc; 
-  // char *net_address_pcc; 
-  // int net_port_scc; 
-  // char *net_address_scc; 
-  // int net_port_signal; 
-  // char *net_address_signal;   
   // while (1)
   // {
   //   static struct option long_options[] =
