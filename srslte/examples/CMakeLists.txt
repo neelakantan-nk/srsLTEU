@@ -39,6 +39,9 @@ target_link_libraries(pdsch_enodeb srslte pthread)
 add_executable(lteu_enodeb_PCC lteu_enodeb_PCC.c)
 target_link_libraries(lteu_enodeb_PCC srslte pthread)
 
+add_executable(lteu_ue_PCC lteu_ue_PCC.c)
+target_link_libraries(lteu_ue_PCC srslte pthread)
+
 if(RF_FOUND)
 
 else(RF_FOUND)

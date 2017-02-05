@@ -93,8 +93,10 @@ typedef struct {
   double rf_freq_pcc; 
   double rf_freq_scc; 
   float rf_gain;
-  int net_port; 
-  char *net_address; 
+  int net_port_pcc; 
+  char *net_address_pcc; 
+  int net_port_scc; 
+  char *net_address_scc; 
   int net_port_signal; 
   char *net_address_signal;   
 }prog_args_t;
@@ -122,8 +124,10 @@ void args_default(prog_args_t *args) {
 #else
   args->rf_gain = 50.0; 
 #endif
-  args->net_port = -1; 
-  args->net_address = "127.0.0.1";
+  args->net_port_pcc = -1; 
+  args->net_address_pcc = "127.0.0.1";
+  args->net_port_scc = -1; 
+  args->net_address_scc = "127.0.0.1";
   args->net_port_signal = -1; 
   args->net_address_signal = "127.0.0.1";
 }
@@ -160,14 +164,152 @@ void usage(prog_args_t *args, char *prog) {
   printf("\t-n nof_subframes [Default %d]\n", args->nof_subframes);
   printf("\t-s remote UDP port to send input signal (-1 does nothing with it) [Default %d]\n", args->net_port_signal);
   printf("\t-S remote UDP address to send input signal [Default %s]\n", args->net_address_signal);
-  printf("\t-u remote TCP port to send data (-1 does nothing with it) [Default %d]\n", args->net_port);
-  printf("\t-U remote TCP address to send data [Default %s]\n", args->net_address);
+  printf("\t-u remote TCP port to send data (-1 does nothing with it) [Default %d]\n", args->net_port_pcc);
+  printf("\t-U remote TCP address to send data [Default %s]\n", args->net_address_pcc);
   printf("\t-v [set srslte_verbose to debug, default none]\n");
 }
 
 void parse_args(prog_args_t *args, int argc, char **argv) {
-  int opt;
+  int opt, longopt;
   args_default(args);
+  // // TODO : delete following variables
+  // int nof_subframes;
+  // bool disable_plots;
+  // bool disable_plots_except_constellation;
+  // bool disable_cfo; 
+  // uint32_t time_offset; 
+  // int force_N_id_2;
+  // uint16_t rnti;
+  // char *input_file_name;
+  // int file_offset_time; 
+  // float file_offset_freq;
+  // uint32_t file_nof_prb;
+  // uint32_t file_nof_ports;
+  // uint32_t file_cell_id;
+  // char *rf_args_pcc; 
+  // char *rf_args_scc; 
+  // double rf_freq_pcc; 
+  // double rf_freq_scc; 
+  // float rf_gain;
+  // int net_port_pcc; 
+  // char *net_address_pcc; 
+  // int net_port_scc; 
+  // char *net_address_scc; 
+  // int net_port_signal; 
+  // char *net_address_signal;   
+  // while (1)
+  // {
+  //   static struct option long_options[] =
+  //   {
+  //     {"verbose", no_argument,       0, 'v'},
+  //     {"add",     no_argument,       0, 'a'},
+  //     {"append",  no_argument,       0, 'b'},
+  //     {"delete",  required_argument, 0, 'd'},
+  //     {"create",  required_argument, 0, 'c'},
+  //     {"file",    required_argument, 0, 'f'},
+  //     {0, 0, 0, 0}
+  //   };
+  //   /* getopt_long stores the option index here. */
+  //   int option_index = 0;
+
+  //   longopt = getopt_long (argc, argv, "abc:d:f:",
+  //       long_options, &option_index);
+
+  //   /* Detect the end of the options. */
+  //   if (longopt == -1)
+  //     break;
+
+  //   switch (longopt)
+  //   {
+  //     case 0:
+  //       /* If this option set a flag, do nothing else now. */
+  //       if (long_options[option_index].flag != 0)
+  //         break;
+  //       printf ("option %s", long_options[option_index].name);
+  //       if (optarg)
+  //         printf (" with arg %s", optarg);
+  //       printf ("\n");
+  //       break;
+
+  //     case 'i':
+  //       args->input_file_name = argv[optind];
+  //       break;
+  //     case 'p':
+  //       args->file_nof_prb = atoi(argv[optind]);
+  //       break;
+  //     case 'P':
+  //       args->file_nof_ports = atoi(argv[optind]);
+  //       break;
+  //     case 'o':
+  //       args->file_offset_freq = atof(argv[optind]);
+  //       break;
+  //     case 'O':
+  //       args->file_offset_time = atoi(argv[optind]);
+  //       break;
+  //     case 'c':
+  //       args->file_cell_id = atoi(argv[optind]);
+  //       break;
+  //     case 'a':
+  //       args->rf_args_pcc = argv[optind];
+  //       break;
+  //     case 'A':
+  //       args->rf_args_scc = argv[optind];
+  //       break;
+  //     case 'g':
+  //       args->rf_gain = atof(argv[optind]);
+  //       break;
+  //     case 'C':
+  //       args->disable_cfo = true;
+  //       break;
+  //     case 't':
+  //       args->time_offset = atoi(argv[optind]);
+  //       break;
+  //     case 'f':
+  //       args->rf_freq_pcc = strtod(argv[optind], NULL);
+  //       break;
+  //     case 'F':
+  //       args->rf_freq_scc = strtod(argv[optind], NULL);
+  //       break;
+  //     case 'n':
+  //       args->nof_subframes = atoi(argv[optind]);
+  //       break;
+  //     case 'r':
+  //       args->rnti = strtol(argv[optind], NULL, 16);
+  //       break;
+  //     case 'l':
+  //       args->force_N_id_2 = atoi(argv[optind]);
+  //       break;
+  //     case 'u':
+  //       args->net_port_pcc = atoi(argv[optind]);
+  //       break;
+  //     case 'U':
+  //       args->net_address_pcc = argv[optind];
+  //       break;
+  //     case 's':
+  //       args->net_port_signal = atoi(argv[optind]);
+  //       break;
+  //     case 'S':
+  //       args->net_address_signal = argv[optind];
+  //       break;
+  //     case 'd':
+  //       args->disable_plots = true;
+  //       break;
+  //     case 'D':
+  //       args->disable_plots_except_constellation = true;
+  //       break;
+  //     case 'v':
+  //       srslte_verbose++;
+  //       break;
+
+  //     case '?':
+  //       /* getopt_long already printed an error message. */
+  //       break;
+
+  //     default:
+  //       abort ();
+  //   }
+  // }
+
   while ((opt = getopt(argc, argv, "aAoglipPcOCtdDnvrfFuUsS")) != -1) {
     switch (opt) {
     case 'i':
@@ -219,10 +361,10 @@ void parse_args(prog_args_t *args, int argc, char **argv) {
       args->force_N_id_2 = atoi(argv[optind]);
       break;
     case 'u':
-      args->net_port = atoi(argv[optind]);
+      args->net_port_pcc = atoi(argv[optind]);
       break;
     case 'U':
-      args->net_address = argv[optind];
+      args->net_address_pcc = argv[optind];
       break;
     case 's':
       args->net_port_signal = atoi(argv[optind]);
@@ -308,13 +450,22 @@ int main(int argc, char **argv) {
   
   parse_args(&prog_args, argc, argv);
 
-  if (prog_args.net_port > 0) {
-    if (srslte_netsink_init(&net_sink, prog_args.net_address, prog_args.net_port, SRSLTE_NETSINK_TCP)) {
-      fprintf(stderr, "Error initiating UDP socket to %s:%d\n", prog_args.net_address, prog_args.net_port);
+  if (prog_args.net_port_pcc > 0) {
+    if (srslte_netsink_init(&net_sink, prog_args.net_address_pcc, prog_args.net_port_pcc, SRSLTE_NETSINK_TCP)) {
+      fprintf(stderr, "Error initiating TCP socket to %s:%d\n", prog_args.net_address_pcc, prog_args.net_port_pcc);
       exit(-1);
     }
     srslte_netsink_set_nonblocking(&net_sink);
   }
+
+  if (prog_args.net_port_scc > 0) {
+    if (srslte_netsink_init(&net_sink, prog_args.net_address_scc, prog_args.net_port_scc, SRSLTE_NETSINK_TCP)) {
+      fprintf(stderr, "Error initiating TCP socket to %s:%d\n", prog_args.net_address_scc, prog_args.net_port_scc);
+      exit(-1);
+    }
+    srslte_netsink_set_nonblocking(&net_sink);
+  }
+  
   if (prog_args.net_port_signal > 0) {
     if (srslte_netsink_init(&net_sink_signal, prog_args.net_address_signal, 
       prog_args.net_port_signal, SRSLTE_NETSINK_UDP)) {
@@ -523,7 +674,7 @@ int main(int argc, char **argv) {
     }
 
 #ifdef CORRECT_SAMPLE_OFFSET
-    // XXX : what if frequency offset is different in PCC and SCC
+    // XXX : what if the frequency offset is different in PCC and SCC
     float sample_offset = (float) srslte_ue_sync_get_last_sample_offset(&ue_sync)+srslte_ue_sync_get_sfo(&ue_sync)/1000; 
     srslte_ue_dl_set_sample_offset(&ue_dl_pcc, sample_offset);
     srslte_ue_dl_set_sample_offset(&ue_dl_scc, sample_offset);
@@ -570,7 +721,7 @@ int main(int argc, char **argv) {
             } else if (n > 0) {
               
               /* Send data if socket active */
-              if (prog_args.net_port > 0) {
+              if (prog_args.net_port_pcc > 0) {
                 srslte_netsink_write(&net_sink, data, 1+(n-1)/8);
               }
               
@@ -590,7 +741,7 @@ int main(int argc, char **argv) {
 
             } 
              
-            // ----------------------------------------------------------
+            // --------------------- Secondary --------------------------
             INFO("Attempting SCC DL decode SFN=%d\n", sfn);
             n = srslte_ue_dl_decode(&ue_dl_scc, 
                                     &sf_buffer_scc[prog_args.time_offset], 
@@ -602,7 +753,7 @@ int main(int argc, char **argv) {
             } else if (n > 0) {
               
               /* Send data if socket active */
-              if (prog_args.net_port > 0) {
+              if (prog_args.net_port_scc > 0) {
                 srslte_netsink_write(&net_sink, data, 1+(n-1)/8);
               }
               
@@ -702,6 +853,7 @@ int main(int argc, char **argv) {
   }
 #endif
   srslte_ue_dl_free(&ue_dl_pcc);
+  srslte_ue_dl_free(&ue_dl_scc);
   srslte_ue_sync_free(&ue_sync);
   
 #ifndef DISABLE_RF
