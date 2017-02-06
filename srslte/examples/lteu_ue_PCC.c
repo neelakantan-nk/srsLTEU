@@ -405,7 +405,7 @@ prog_args_t prog_args;
 uint32_t sfn = 0; // system frame number
 cf_t *sf_buffer_pcc = NULL; 
 cf_t *sf_buffer_scc = NULL; 
-srslte_netsink_t net_sink, net_sink_signal; 
+srslte_netsink_t net_sink_pcc, net_sink_scc, net_sink_signal; 
 
 //-----------------------------MAIN-------------------------------//
 int main(int argc, char **argv) {
@@ -426,19 +426,19 @@ int main(int argc, char **argv) {
   parse_args(&prog_args, argc, argv);
 
   if (prog_args.net_port_pcc > 0) {
-    if (srslte_netsink_init(&net_sink, prog_args.net_address_pcc, prog_args.net_port_pcc, SRSLTE_NETSINK_TCP)) {
+    if (srslte_netsink_init(&net_sink_pcc, prog_args.net_address_pcc, prog_args.net_port_pcc, SRSLTE_NETSINK_TCP)) {
       fprintf(stderr, "Error initiating TCP socket to %s:%d\n", prog_args.net_address_pcc, prog_args.net_port_pcc);
       exit(-1);
     }
-    srslte_netsink_set_nonblocking(&net_sink);
+    srslte_netsink_set_nonblocking(&net_sink_pcc);
   }
 
   if (prog_args.net_port_scc > 0) {
-    if (srslte_netsink_init(&net_sink, prog_args.net_address_scc, prog_args.net_port_scc, SRSLTE_NETSINK_TCP)) {
+    if (srslte_netsink_init(&net_sink_scc, prog_args.net_address_scc, prog_args.net_port_scc, SRSLTE_NETSINK_TCP)) {
       fprintf(stderr, "Error initiating TCP socket to %s:%d\n", prog_args.net_address_scc, prog_args.net_port_scc);
       exit(-1);
     }
-    srslte_netsink_set_nonblocking(&net_sink);
+    srslte_netsink_set_nonblocking(&net_sink_scc);
   }
   
   if (prog_args.net_port_signal > 0) {
@@ -692,12 +692,12 @@ int main(int argc, char **argv) {
                                     sfn*10+srslte_ue_sync_get_sfidx(&ue_sync));
           
             if (n < 0) {
-             // fprintf(stderr, "Error decoding UE DL\n");fflush(stdout);
+              fprintf(stderr, "Error decoding UE DL PCC\n");fflush(stdout);
             } else if (n > 0) {
               
               /* Send data if socket active */
               if (prog_args.net_port_pcc > 0) {
-                srslte_netsink_write(&net_sink, data, 1+(n-1)/8);
+                srslte_netsink_write(&net_sink_pcc, data, 1+(n-1)/8);
               }
               
               #ifdef PRINT_CHANGE_SCHEDULIGN
@@ -724,12 +724,12 @@ int main(int argc, char **argv) {
                                     sfn*10+srslte_ue_sync_get_sfidx(&ue_sync));
           
             if (n < 0) {
-             // fprintf(stderr, "Error decoding UE DL\n");fflush(stdout);
+              fprintf(stderr, "Error decoding UE DL SCC \n");fflush(stdout);
             } else if (n > 0) {
               
               /* Send data if socket active */
               if (prog_args.net_port_scc > 0) {
-                srslte_netsink_write(&net_sink, data, 1+(n-1)/8);
+                srslte_netsink_write(&net_sink_scc, data, 1+(n-1)/8);
               }
               
               #ifdef PRINT_CHANGE_SCHEDULIGN

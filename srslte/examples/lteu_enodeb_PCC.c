@@ -769,7 +769,7 @@ int main(int argc, char **argv) {
       }
 
       // PCFICH insertion for specific SFs
-      if (sf_idx >= sf_start || sf_idx <= sf_end) {
+      if (sf_idx >= sf_start && sf_idx <= sf_end) {
         srslte_pcfich_encode(&pcfich, cfi, sf_symbols, sf_idx); 
       }        
 
@@ -824,7 +824,7 @@ int main(int argc, char **argv) {
         }
 
         /* Encode PDSCH */
-        if (srslte_pdsch_encode(&pdsch, &pdsch_cfg, &softbuffer_pcc, data_pcc, sf_symbols)) {
+        if (srslte_pdsch_encode(&pdsch, &pdsch_cfg, &softbuffer_pcc, data_pcc, sf_symbols_pcc)) {
           fprintf(stderr, "Error encoding PDSCH\n");
           exit(-1);
         }        
