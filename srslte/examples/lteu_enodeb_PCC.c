@@ -238,7 +238,7 @@ void base_init() {
     }
   } else {
 #ifndef DISABLE_RF
-    printf("Opening RF device...\n");
+    printf("Opening RF device for SCC...\n");
     if (srslte_rf_open(&rf, rf_args)) {
       fprintf(stderr, "Error opening rf\n");
       exit(-1);

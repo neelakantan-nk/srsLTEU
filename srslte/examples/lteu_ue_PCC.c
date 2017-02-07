@@ -706,14 +706,14 @@ int main(int argc, char **argv) {
             }
           }
           if (decode_pdsch) {            
-            INFO("Attempting DL decode SFN=%d\n", sfn);
+            INFO("PCC : Attempting DL decode SFN=%d\n", sfn);
             n = srslte_ue_dl_decode(&ue_dl_pcc, 
                                     &sf_buffer_pcc[prog_args.time_offset], 
                                     data, 
                                     sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_pcc));
           
             if (n < 0) {
-              fprintf(stderr, "Error decoding UE DL PCC\n");fflush(stdout);
+              fprintf(stderr, "PCC : Error decoding UE DL\n");fflush(stdout);
             } else if (n > 0) {
               
               /* Send data if socket active */
@@ -738,16 +738,16 @@ int main(int argc, char **argv) {
             } 
              
             // --------------------- Secondary --------------------------
-            INFO("Attempting SCC DL decode SFN=%d\n", sfn);
+            INFO("SCC : Attempting DL decode SFN=%d\n", sfn);
             //FIXME: following fn tries to decode data even in off SFs (maybe correct)
             n = srslte_ue_dl_decode(&ue_dl_scc, 
                                     &sf_buffer_scc[prog_args.time_offset], 
                                     data, 
-                                    sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_pcc)); 
+                                    sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_scc)); 
                                     // XXX:leaving _pcc here, this calculates tti.
           
             if (n < 0) {
-              fprintf(stderr, "Error decoding UE DL SCC \n");fflush(stdout);
+              fprintf(stderr, "SCC : Error decoding UE DL\n");fflush(stdout);
             } else if (n > 0) {
               
               /* Send data if socket active */
@@ -786,6 +786,8 @@ int main(int argc, char **argv) {
             if (isnan(rsrp)) {
               rsrp = 0; 
             }        
+            
+            INFO("------- PDSCH decoding complete for surrent sfid -------- %d\n", nframes);
           }
 
           // Plot and Printf

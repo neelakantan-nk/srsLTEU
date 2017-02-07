@@ -301,7 +301,9 @@ int srslte_ue_dl_decode_rnti(srslte_ue_dl_t *q, cf_t *input, uint8_t *data, uint
     //float noise_estimate = 0; 
     float noise_estimate = srslte_chest_dl_get_noise_estimate(&q->chest);
     
+    // XXX : SCC is not entering this condition
     if (q->pdsch_cfg.grant.mcs.mod > 0 && q->pdsch_cfg.grant.mcs.tbs >= 0) {
+      INFO("Entering PDSCH decode %d\n", q->nof_detected);
       ret = srslte_pdsch_decode_rnti(&q->pdsch, &q->pdsch_cfg, &q->softbuffer, 
                                     q->sf_symbols, q->ce, 
                                     noise_estimate, 
@@ -458,7 +460,8 @@ static int find_dl_dci_type_crnti(srslte_ue_dl_t *q, uint32_t cfi, uint32_t sf_i
   }
   
   srslte_pdcch_set_cfi(&q->pdcch, cfi);
-  
+ 
+  // XXX: Here the PCC returns but SCC continuous after for loop
   INFO("Searching DL C-RNTI in %d ue locations, %d formats\n", current_ss->nof_locations, nof_ue_formats);
   for (int f=0;f<nof_ue_formats;f++) {
     current_ss->format = ue_formats[f];   
