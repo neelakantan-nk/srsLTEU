@@ -369,6 +369,7 @@ void parse_args(prog_args_t *args, int argc, char **argv) {
 /**********************************************************************/
 
 /* TODO: Do something with the output data */
+// XXX: This will be used by both pcc and scc
 uint8_t data[20000];
 
 bool go_exit = false; 
@@ -399,7 +400,8 @@ enum receiver_state { DECODE_MIB, DECODE_PDSCH} state;
 // TODO : which parameter should be decoupled between PCC and SCC
 srslte_ue_dl_t ue_dl_pcc; 
 srslte_ue_dl_t ue_dl_scc; 
-srslte_ue_sync_t ue_sync; 
+srslte_ue_sync_t ue_sync_pcc; 
+srslte_ue_sync_t ue_sync_scc; 
 prog_args_t prog_args; 
 
 uint32_t sfn = 0; // system frame number
@@ -409,7 +411,7 @@ srslte_netsink_t net_sink_pcc, net_sink_scc, net_sink_signal;
 
 //-----------------------------MAIN-------------------------------//
 int main(int argc, char **argv) {
-  int ret; 
+  int ret, ret_pcc, ret_scc; 
   srslte_cell_t cell;  
   int64_t sf_cnt;
   srslte_ue_mib_t ue_mib; 
@@ -564,16 +566,26 @@ int main(int argc, char **argv) {
     cell.nof_ports = prog_args.file_nof_ports; 
     cell.nof_prb = prog_args.file_nof_prb; 
     
-    if (srslte_ue_sync_init_file(&ue_sync, prog_args.file_nof_prb, 
+    if (srslte_ue_sync_init_file(&ue_sync_pcc, prog_args.file_nof_prb, 
       prog_args.input_file_name, prog_args.file_offset_time, prog_args.file_offset_freq)) {
-      fprintf(stderr, "Error initiating ue_sync\n");
+      fprintf(stderr, "Error initiating ue_sync_pcc\n");
+      exit(-1); 
+    }
+    
+    if (srslte_ue_sync_init_file(&ue_sync_scc, prog_args.file_nof_prb, 
+      prog_args.input_file_name, prog_args.file_offset_time, prog_args.file_offset_freq)) {
+      fprintf(stderr, "Error initiating ue_sync_scc\n");
       exit(-1); 
     }
 
   } else {
 #ifndef DISABLE_RF
-    if (srslte_ue_sync_init(&ue_sync, cell, srslte_rf_recv_wrapper, (void*) &rf_pcc)) {
-      fprintf(stderr, "Error initiating ue_sync\n");
+    if (srslte_ue_sync_init(&ue_sync_pcc, cell, srslte_rf_recv_wrapper, (void*) &rf_pcc)) {
+      fprintf(stderr, "Error initiating ue_sync_pcc\n");
+      exit(-1); 
+    }
+    if (srslte_ue_sync_init(&ue_sync_scc, cell, srslte_rf_recv_wrapper, (void*) &rf_scc)) {
+      fprintf(stderr, "Error initiating ue_sync_scc\n");
       exit(-1); 
     }
 #endif
@@ -622,7 +634,10 @@ int main(int argc, char **argv) {
 
 #ifndef DISABLE_RF
   if (prog_args.rf_gain < 0) {
-    srslte_ue_sync_start_agc(&ue_sync, srslte_rf_set_rx_gain_th_wrapper_, cell_detect_config.init_agc);
+    srslte_ue_sync_start_agc(&ue_sync_pcc, srslte_rf_set_rx_gain_th_wrapper_, cell_detect_config.init_agc);
+  }
+  if (prog_args.rf_gain < 0) {
+    srslte_ue_sync_start_agc(&ue_sync_scc, srslte_rf_set_rx_gain_th_wrapper_, cell_detect_config.init_agc);
   }
 #endif
 #ifdef PRINT_CHANGE_SCHEDULIGN
@@ -630,10 +645,14 @@ int main(int argc, char **argv) {
   bzero(&old_dl_dci, sizeof(srslte_ra_dl_dci_t));
 #endif
   
-  ue_sync.correct_cfo = !prog_args.disable_cfo;
+  ue_sync_pcc.correct_cfo = !prog_args.disable_cfo;
+  ue_sync_scc.correct_cfo = !prog_args.disable_cfo;
   
-  // Set initial CFO for ue_sync
-  srslte_ue_sync_set_cfo(&ue_sync, cfo); 
+  // Set initial CFO for ue_sync_pcc
+  srslte_ue_sync_set_cfo(&ue_sync_pcc, cfo); 
+  
+  // Set initial CFO for ue_sync_scc
+  srslte_ue_sync_set_cfo(&ue_sync_scc, cfo); 
   
   srslte_pbch_decode_reset(&ue_mib.pbch);
             
@@ -643,23 +662,25 @@ int main(int argc, char **argv) {
   /*----------------- Main while loop -----------------*/
   while (!go_exit && (sf_cnt < prog_args.nof_subframes || prog_args.nof_subframes == -1)) {
     
-    ret = srslte_ue_sync_get_buffer(&ue_sync, &sf_buffer_pcc);
-    if (ret < 0) {
+    ret_pcc = srslte_ue_sync_get_buffer(&ue_sync_pcc, &sf_buffer_pcc);
+    ret_scc = srslte_ue_sync_get_buffer(&ue_sync_scc, &sf_buffer_scc);
+    if (ret_pcc < 0) {
       fprintf(stderr, "Error calling srslte_ue_sync_work()\n");
     }
+    // TODO: Unsure if ret_scc should be checked at this point
 
 #ifdef CORRECT_SAMPLE_OFFSET
     // XXX : what if the frequency offset is different in PCC and SCC
-    float sample_offset = (float) srslte_ue_sync_get_last_sample_offset(&ue_sync)+srslte_ue_sync_get_sfo(&ue_sync)/1000; 
+    float sample_offset = (float) srslte_ue_sync_get_last_sample_offset(&ue_sync_pcc)+srslte_ue_sync_get_sfo(&ue_sync_pcc)/1000; 
     srslte_ue_dl_set_sample_offset(&ue_dl_pcc, sample_offset);
     srslte_ue_dl_set_sample_offset(&ue_dl_scc, sample_offset);
 #endif
     
     /* srslte_ue_sync_get_buffer returns 1 if successfully read 1 aligned subframe */
-    if (ret == 1) {
+    if (ret_pcc == 1) {
       switch (state) {
         case DECODE_MIB:
-          if (srslte_ue_sync_get_sfidx(&ue_sync) == 0) {
+          if (srslte_ue_sync_get_sfidx(&ue_sync_pcc) == 0) {
             n = srslte_ue_mib_decode(&ue_mib, sf_buffer_pcc, bch_payload, NULL, &sfn_offset);
             if (n < 0) {
               fprintf(stderr, "Error decoding UE MIB\n");
@@ -678,7 +699,7 @@ int main(int argc, char **argv) {
             decode_pdsch = true;             
           } else {
             /* We are looking for SIB1 Blocks, search only in appropiate places */
-            if ((srslte_ue_sync_get_sfidx(&ue_sync) == 5 && (sfn%2)==0)) {
+            if ((srslte_ue_sync_get_sfidx(&ue_sync_pcc) == 5 && (sfn%2)==0)) {
               decode_pdsch = true; 
             } else {
               decode_pdsch = false; 
@@ -689,7 +710,7 @@ int main(int argc, char **argv) {
             n = srslte_ue_dl_decode(&ue_dl_pcc, 
                                     &sf_buffer_pcc[prog_args.time_offset], 
                                     data, 
-                                    sfn*10+srslte_ue_sync_get_sfidx(&ue_sync));
+                                    sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_pcc));
           
             if (n < 0) {
               fprintf(stderr, "Error decoding UE DL PCC\n");fflush(stdout);
@@ -718,10 +739,12 @@ int main(int argc, char **argv) {
              
             // --------------------- Secondary --------------------------
             INFO("Attempting SCC DL decode SFN=%d\n", sfn);
+            //FIXME: following fn tries to decode data even in off SFs (maybe correct)
             n = srslte_ue_dl_decode(&ue_dl_scc, 
                                     &sf_buffer_scc[prog_args.time_offset], 
                                     data, 
-                                    sfn*10+srslte_ue_sync_get_sfidx(&ue_sync));
+                                    sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_pcc)); 
+                                    // XXX:leaving _pcc here, this calculates tti.
           
             if (n < 0) {
               fprintf(stderr, "Error decoding UE DL SCC \n");fflush(stdout);
@@ -766,23 +789,23 @@ int main(int argc, char **argv) {
           }
 
           // Plot and Printf
-          if (srslte_ue_sync_get_sfidx(&ue_sync) == 5) {
+          if (srslte_ue_sync_get_sfidx(&ue_sync_pcc) == 5) {
             float gain = prog_args.rf_gain; 
             if (gain < 0) {
-              gain = 10*log10(srslte_agc_get_gain(&ue_sync.agc)); 
+              gain = 10*log10(srslte_agc_get_gain(&ue_sync_pcc.agc)); 
             }
             printf("CFO: %+6.2f kHz, "
                    "SNR: %4.1f dB, "
                    "PDCCH-Miss: %5.2f%%, PDSCH-BLER: %5.2f%%\r",
                    
-                  srslte_ue_sync_get_cfo(&ue_sync)/1000,
+                  srslte_ue_sync_get_cfo(&ue_sync_pcc)/1000,
                   10*log10(rsrp/noise), 
                   100*(1-(float) ue_dl_pcc.nof_detected/nof_trials), 
                   (float) 100*ue_dl_pcc.pkt_errors/ue_dl_pcc.pkts_total);                        
           }
           break;
       }
-      if (srslte_ue_sync_get_sfidx(&ue_sync) == 9) {
+      if (srslte_ue_sync_get_sfidx(&ue_sync_pcc) == 9) {
         sfn++; 
         if (sfn == 1024) {
           sfn = 0; 
@@ -797,19 +820,19 @@ int main(int argc, char **argv) {
       #ifndef DISABLE_GRAPHICS
       if (!prog_args.disable_plots) {
         if ((sfn%4) == 0 && decode_pdsch) {
-          plot_sf_idx = srslte_ue_sync_get_sfidx(&ue_sync);
+          plot_sf_idx = srslte_ue_sync_get_sfidx(&ue_sync_pcc);
           plot_track = true;
           sem_post(&plot_sem);
         }
       }
       #endif
-    } else if (ret == 0) {
+    } else if (ret_pcc == 0) {
       printf("Finding PSS... Peak: %8.1f, FrameCnt: %d, State: %d\r", 
-        srslte_sync_get_peak_value(&ue_sync.sfind), 
-        ue_sync.frame_total_cnt, ue_sync.state);      
+        srslte_sync_get_peak_value(&ue_sync_pcc.sfind), 
+        ue_sync_pcc.frame_total_cnt, ue_sync_pcc.state);      
       #ifndef DISABLE_GRAPHICS
       if (!prog_args.disable_plots) {
-        plot_sf_idx = srslte_ue_sync_get_sfidx(&ue_sync);
+        plot_sf_idx = srslte_ue_sync_get_sfidx(&ue_sync_pcc);
         plot_track = false; 
         sem_post(&plot_sem);                
       }
@@ -829,7 +852,7 @@ int main(int argc, char **argv) {
 #endif
   srslte_ue_dl_free(&ue_dl_pcc);
   srslte_ue_dl_free(&ue_dl_scc);
-  srslte_ue_sync_free(&ue_sync);
+  srslte_ue_sync_free(&ue_sync_pcc);
   
 #ifndef DISABLE_RF
   if (!prog_args.input_file_name) {
@@ -920,7 +943,7 @@ void *plot_thread_run(void *arg) {
       
       if (!prog_args.input_file_name) {
         if (plot_track) {
-          srslte_pss_synch_t *pss_obj = srslte_sync_get_cur_pss_obj(&ue_sync.strack);
+          srslte_pss_synch_t *pss_obj = srslte_sync_get_cur_pss_obj(&ue_sync_pcc.strack);
           int max = srslte_vec_max_fi(pss_obj->conv_output_avg, pss_obj->frame_size+pss_obj->fft_size-1);
           srslte_vec_sc_prod_fff(pss_obj->conv_output_avg, 
                           1/pss_obj->conv_output_avg[max], 
@@ -928,12 +951,12 @@ void *plot_thread_run(void *arg) {
                           pss_obj->frame_size+pss_obj->fft_size-1);        
           plot_real_setNewData(&p_sync, tmp_plot2, pss_obj->frame_size);        
         } else {
-          int max = srslte_vec_max_fi(ue_sync.sfind.pss.conv_output_avg, ue_sync.sfind.pss.frame_size+ue_sync.sfind.pss.fft_size-1);
-          srslte_vec_sc_prod_fff(ue_sync.sfind.pss.conv_output_avg, 
-                          1/ue_sync.sfind.pss.conv_output_avg[max], 
+          int max = srslte_vec_max_fi(ue_sync_pcc.sfind.pss.conv_output_avg, ue_sync_pcc.sfind.pss.frame_size+ue_sync_pcc.sfind.pss.fft_size-1);
+          srslte_vec_sc_prod_fff(ue_sync_pcc.sfind.pss.conv_output_avg, 
+                          1/ue_sync_pcc.sfind.pss.conv_output_avg[max], 
                           tmp_plot2, 
-                          ue_sync.sfind.pss.frame_size+ue_sync.sfind.pss.fft_size-1);        
-          plot_real_setNewData(&p_sync, tmp_plot2, ue_sync.sfind.pss.frame_size);        
+                          ue_sync_pcc.sfind.pss.frame_size+ue_sync_pcc.sfind.pss.fft_size-1);        
+          plot_real_setNewData(&p_sync, tmp_plot2, ue_sync_pcc.sfind.pss.frame_size);        
         }
         
       }
@@ -945,8 +968,8 @@ void *plot_thread_run(void *arg) {
     
     if (plot_sf_idx == 1) {
       if (prog_args.net_port_signal > 0) {
-        srslte_netsink_write(&net_sink_signal, &sf_buffer_pcc[srslte_ue_sync_sf_len(&ue_sync)/7], 
-                            srslte_ue_sync_sf_len(&ue_sync)); 
+        srslte_netsink_write(&net_sink_signal, &sf_buffer_pcc[srslte_ue_sync_sf_len(&ue_sync_pcc)/7], 
+                            srslte_ue_sync_sf_len(&ue_sync_pcc)); 
       }
     }
 

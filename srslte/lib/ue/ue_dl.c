@@ -267,6 +267,7 @@ int srslte_ue_dl_decode_rnti(srslte_ue_dl_t *q, cf_t *input, uint8_t *data, uint
   }
 
   int found_dci = srslte_ue_dl_find_dl_dci(q, cfi, sf_idx, rnti, &dci_msg);   
+
   if (found_dci == 1) {
     
     if (srslte_dci_msg_to_dl_grant(&dci_msg, rnti, q->cell.nof_prb, q->cell.nof_ports, &dci_unpacked, &grant)) {
@@ -322,7 +323,7 @@ int srslte_ue_dl_decode_rnti(srslte_ue_dl_t *q, cf_t *input, uint8_t *data, uint
   
   }
 
-  q->pkts_total++;
+  q->pkts_total++; 
 
   if (found_dci == 1 && ret == SRSLTE_SUCCESS) { 
     return q->pdsch_cfg.grant.mcs.tbs;    
