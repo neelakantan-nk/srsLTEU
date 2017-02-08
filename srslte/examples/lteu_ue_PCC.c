@@ -751,7 +751,7 @@ int main(int argc, char **argv) {
             n = srslte_ue_dl_decode(&ue_dl_scc, 
                                     &sf_buffer_scc[prog_args.time_offset], 
                                     data, 
-                                    sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_scc)); 
+                                    sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_pcc)); 
                                     // XXX:leaving _pcc here, this calculates tti.
           
             if (n < 0) {
