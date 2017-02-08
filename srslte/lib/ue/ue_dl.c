@@ -205,7 +205,7 @@ int srslte_ue_dl_decode_fft_estimate(srslte_ue_dl_t *q, cf_t *input, uint32_t sf
                          &q->sf_symbols[i*q->cell.nof_prb*SRSLTE_NRE], 
                          q->sample_offset / q->fft.symbol_sz);
       }
-    }
+    } 
     return srslte_ue_dl_decode_estimate(q, sf_idx, cfi); 
   } else {
     return SRSLTE_ERROR_INVALID_INPUTS; 
@@ -255,7 +255,7 @@ int srslte_ue_dl_decode_rnti(srslte_ue_dl_t *q, cf_t *input, uint8_t *data, uint
   int ret = SRSLTE_ERROR; 
   uint32_t cfi;
   
-  uint32_t sf_idx = tti%10; 
+  uint32_t sf_idx = tti%10;  
   
   if ((ret = srslte_ue_dl_decode_fft_estimate(q, input, sf_idx, &cfi)) < 0) {
     return ret; 
@@ -353,8 +353,10 @@ static int dci_blind_search(srslte_ue_dl_t *q, dci_blind_search_t *search_space,
       if (srslte_pdcch_decode_msg(&q->pdcch, dci_msg, &search_space->loc[i], search_space->format, &crc_rem)) {
         fprintf(stderr, "Error decoding DCI msg\n");
         return SRSLTE_ERROR;
-      }
-      if (crc_rem == rnti) {        
+      } 
+      INFO("crc_rem = %d\n",crc_rem); 
+      if (crc_rem == rnti) { 
+        INFO("Inside crc_rem = rnti block! rnti = %d \n",rnti);
         // If searching for Format1A but found Format0 save it for later 
         if (dci_msg->format == SRSLTE_DCI_FORMAT0 && search_space->format == SRSLTE_DCI_FORMAT1A) 
         {
@@ -451,6 +453,9 @@ static int find_dl_dci_type_crnti(srslte_ue_dl_t *q, uint32_t cfi, uint32_t sf_i
   dci_blind_search_t search_space; 
   dci_blind_search_t *current_ss = &search_space;
   
+  INFO("q->current_rnti = %d, rnti = %d \n",q->current_rnti,rnti);
+  INFO("cfi = %d, sf_idx = %d\n",cfi,sf_idx); 
+
   // Search UE-specific search space 
   if (q->current_rnti == rnti) {
     current_ss = &q->current_ss_ue[cfi-1][sf_idx];

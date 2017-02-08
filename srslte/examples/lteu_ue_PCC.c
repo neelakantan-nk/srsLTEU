@@ -663,7 +663,11 @@ int main(int argc, char **argv) {
   while (!go_exit && (sf_cnt < prog_args.nof_subframes || prog_args.nof_subframes == -1)) {
     
     ret_pcc = srslte_ue_sync_get_buffer(&ue_sync_pcc, &sf_buffer_pcc);
-    ret_scc = srslte_ue_sync_get_buffer(&ue_sync_scc, &sf_buffer_scc);
+    ret_scc = srslte_ue_sync_get_buffer(&ue_sync_scc, &sf_buffer_scc); 
+
+    INFO("ret_pcc = %d\n",ret_pcc); 
+    INFO("ret_scc = %d\n",ret_scc); 
+
     if (ret_pcc < 0) {
       fprintf(stderr, "Error calling srslte_ue_sync_work()\n");
     }
@@ -740,6 +744,10 @@ int main(int argc, char **argv) {
             // --------------------- Secondary --------------------------
             INFO("SCC : Attempting DL decode SFN=%d\n", sfn);
             //FIXME: following fn tries to decode data even in off SFs (maybe correct)
+
+            INFO("get_sfidx = %d\n",srslte_ue_sync_get_sfidx(&ue_sync_scc)); 
+            INFO("tti = %d\n",sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_scc)); 
+
             n = srslte_ue_dl_decode(&ue_dl_scc, 
                                     &sf_buffer_scc[prog_args.time_offset], 
                                     data, 
