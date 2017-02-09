@@ -402,6 +402,7 @@ enum receiver_state { DECODE_MIB, DECODE_PDSCH} state;
 srslte_ue_dl_t ue_dl_pcc; 
 srslte_ue_dl_t ue_dl_scc; 
 srslte_ue_sync_t ue_sync_pcc; 
+srslte_ue_sync_t ue_sync_pcc_bu; 
 srslte_ue_sync_t ue_sync_scc; 
 prog_args_t prog_args; 
 
@@ -663,22 +664,34 @@ int main(int argc, char **argv) {
   /*----------------- Main while loop -----------------*/
   while (!go_exit && (sf_cnt < prog_args.nof_subframes || prog_args.nof_subframes == -1)) {
     
+    // Creating one more copy
+    INFO("Creating copy...%d\n\n", sizeof(srslte_ue_sync_t));
+    // ue_sync_pcc_bu = ue_sync_pcc;
+    memcpy(&ue_sync_pcc_bu, &ue_sync_pcc, sizeof(srslte_ue_sync_t)); // incorrect
+    // This copy process fails, because srslte_ue_sync_t has some pointers too.
+    // directly copying will not help. But need information stored in ue_sync_pcc.
+    // Write a function to create a copy of srslte_ue_sync_t structure.
+    
+
+
+    // XXX : NOTE : each time following function is called one subframe is processed
+    // the buffer pointer is moved ahead by one SF and that is why reading it twice
+    // results in subframe miss.
     ret_pcc = srslte_ue_sync_get_buffer(&ue_sync_pcc, &sf_buffer_pcc);
     ret_scc = srslte_ue_sync_get_buffer(&ue_sync_scc, &sf_buffer_scc); 
     
     // XXX : using the following resulted in half PCC throughput(?)
-    // ret_scc = srslte_ue_sync_get_buffer_scc(&ue_sync_pcc, &ue_sync_scc, &sf_buffer_scc); 
+    // ret_scc = srslte_ue_sync_get_buffer_scc(&ue_sync_pcc_bu, &ue_sync_scc, &sf_buffer_scc); 
 
     if (ret_pcc < 0) {
       fprintf(stderr, "Error calling srslte_ue_sync_work()\n");
     }
-    // TODO: Unsure if ret_scc should be checked at this point
 
 #ifdef CORRECT_SAMPLE_OFFSET
     // XXX : what if the frequency offset is different in PCC and SCC
     float sample_offset = (float) srslte_ue_sync_get_last_sample_offset(&ue_sync_pcc)+srslte_ue_sync_get_sfo(&ue_sync_pcc)/1000; 
     srslte_ue_dl_set_sample_offset(&ue_dl_pcc, sample_offset);
-    srslte_ue_dl_set_sample_offset(&ue_dl_scc, sample_offset);
+    // srslte_ue_dl_set_sample_offset(&ue_dl_scc, sample_offset);
 #endif
     
     /* srslte_ue_sync_get_buffer returns 1 if successfully read 1 aligned subframe */

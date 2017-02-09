@@ -40,6 +40,7 @@
 #include "srslte/srslte.h"
 
 #define ENABLE_AGC_DEFAULT
+#define DISABLE_GRAPHICS
 
 #ifndef DISABLE_RF
 #include "srslte/rf/rf.h"
