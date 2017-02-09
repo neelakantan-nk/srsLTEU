@@ -474,6 +474,16 @@ int srslte_ue_sync_get_buffer(srslte_ue_sync_t *q, cf_t **sf_symbols) {
 
 }
 
+// XXX : Adding this to process SCC
+int srslte_ue_sync_get_buffer_scc(srslte_ue_sync_t *p, srslte_ue_sync_t *q, cf_t **sf_symbols) {
+  int ret = srslte_ue_sync_zerocopy(p, p->input_buffer);
+  if (sf_symbols) {
+    *sf_symbols = q->input_buffer;
+  }
+  return ret; 
+
+}
+
 /* Returns 1 if the subframe is synchronized in time, 0 otherwise */
 int srslte_ue_sync_zerocopy(srslte_ue_sync_t *q, cf_t *input_buffer) {
   int ret = SRSLTE_ERROR_INVALID_INPUTS; 

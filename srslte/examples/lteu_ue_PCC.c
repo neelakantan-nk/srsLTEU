@@ -40,6 +40,7 @@
 #include "srslte/srslte.h"
 
 #define ENABLE_AGC_DEFAULT
+#define DISABLE_GRAPHICS
 
 #ifndef DISABLE_RF
 #include "srslte/rf/rf.h"
@@ -664,9 +665,9 @@ int main(int argc, char **argv) {
     
     ret_pcc = srslte_ue_sync_get_buffer(&ue_sync_pcc, &sf_buffer_pcc);
     ret_scc = srslte_ue_sync_get_buffer(&ue_sync_scc, &sf_buffer_scc); 
-
-    INFO("ret_pcc = %d\n",ret_pcc); 
-    INFO("ret_scc = %d\n",ret_scc); 
+    
+    // XXX : using the following resulted in half PCC throughput(?)
+    // ret_scc = srslte_ue_sync_get_buffer_scc(&ue_sync_pcc, &ue_sync_scc, &sf_buffer_scc); 
 
     if (ret_pcc < 0) {
       fprintf(stderr, "Error calling srslte_ue_sync_work()\n");
@@ -710,7 +711,7 @@ int main(int argc, char **argv) {
             }
           }
           if (decode_pdsch) {            
-            INFO("PCC : Attempting DL decode SFN=%d\n", sfn);
+            INFO("---- PCC : Attempting DL decode SFN=%d\n", sfn);
             n = srslte_ue_dl_decode(&ue_dl_pcc, 
                                     &sf_buffer_pcc[prog_args.time_offset], 
                                     data, 
@@ -742,7 +743,7 @@ int main(int argc, char **argv) {
             } 
              
             // --------------------- Secondary --------------------------
-            INFO("SCC : Attempting DL decode SFN=%d\n", sfn);
+            INFO("---- SCC : Attempting DL decode SFN=%d\n", sfn);
             //FIXME: following fn tries to decode data even in off SFs (maybe correct)
 
             INFO("get_sfidx = %d\n",srslte_ue_sync_get_sfidx(&ue_sync_scc)); 
@@ -795,7 +796,7 @@ int main(int argc, char **argv) {
               rsrp = 0; 
             }        
             
-            INFO("------- PDSCH decoding complete for surrent sfid -------- %d\n", nframes);
+            INFO("------- PDSCH decoding complete for current sfid -------- %d\n", nframes);
           }
 
           // Plot and Printf

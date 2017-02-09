@@ -354,7 +354,7 @@ static int dci_blind_search(srslte_ue_dl_t *q, dci_blind_search_t *search_space,
         fprintf(stderr, "Error decoding DCI msg\n");
         return SRSLTE_ERROR;
       } 
-      INFO("crc_rem = %d\n",crc_rem); 
+      INFO("crc_rem = %x, rnti = %x\n",crc_rem, rnti); 
       if (crc_rem == rnti) { 
         INFO("Inside crc_rem = rnti block! rnti = %d \n",rnti);
         // If searching for Format1A but found Format0 save it for later 
