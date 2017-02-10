@@ -665,9 +665,10 @@ int main(int argc, char **argv) {
   while (!go_exit && (sf_cnt < prog_args.nof_subframes || prog_args.nof_subframes == -1)) {
     
     // Creating one more copy
-    INFO("Creating copy...%d\n\n", sizeof(srslte_ue_sync_t));
+    // INFO("Creating copy...%d\n\n", sizeof(srslte_ue_sync_t));
     // ue_sync_pcc_bu = ue_sync_pcc;
-    memcpy(&ue_sync_pcc_bu, &ue_sync_pcc, sizeof(srslte_ue_sync_t)); // incorrect
+    // memcpy(&ue_sync_pcc_bu, &ue_sync_pcc, sizeof(srslte_ue_sync_t)); // incorrect
+    
     // This copy process fails, because srslte_ue_sync_t has some pointers too.
     // directly copying will not help. But need information stored in ue_sync_pcc.
     // Write a function to create a copy of srslte_ue_sync_t structure.
@@ -677,12 +678,12 @@ int main(int argc, char **argv) {
     // XXX : NOTE : each time following function is called one subframe is processed
     // the buffer pointer is moved ahead by one SF and that is why reading it twice
     // results in subframe miss.
-    ret_pcc = srslte_ue_sync_get_buffer(&ue_sync_pcc, &sf_buffer_pcc);
-    ret_scc = srslte_ue_sync_get_buffer(&ue_sync_scc, &sf_buffer_scc); 
+    // ret_pcc = srslte_ue_sync_get_buffer(&ue_sync_pcc, &sf_buffer_pcc);
+    // ret_scc = srslte_ue_sync_get_buffer(&ue_sync_scc, &sf_buffer_scc); 
     
     // XXX : This single function should do the work of previous two
     // uses primary data to get sync and copy the buffer for both
-    // ret_scc = srslte_ue_sync_get_buffer_scc(&ue_sync_pcc_bu, &ue_sync_scc, &sf_buffer_pcc, &sf_buffer_scc); 
+    ret_pcc = srslte_ue_sync_get_buffer_scc(&ue_sync_pcc, &ue_sync_scc, &sf_buffer_pcc, &sf_buffer_scc); 
 
     if (ret_pcc < 0) {
       fprintf(stderr, "Error calling srslte_ue_sync_work()\n");
@@ -725,7 +726,7 @@ int main(int argc, char **argv) {
             }
           }
           if (decode_pdsch) {            
-            INFO("---- PCC : Attempting DL decode SFN=%d\n", sfn);
+            INFO("* ---- PCC : Attempting DL decode SFN=%d\n", sfn);
             n = srslte_ue_dl_decode(&ue_dl_pcc, 
                                     &sf_buffer_pcc[prog_args.time_offset], 
                                     data, 
@@ -757,13 +758,13 @@ int main(int argc, char **argv) {
             } 
              
             // --------------------- Secondary --------------------------
-            INFO("---- SCC : Attempting DL decode SFN=%d\n", sfn);
+            INFO("* ---- SCC : Attempting DL decode SFN=%d\n", sfn);
             //FIXME: following fn tries to decode data even in off SFs (maybe correct)
 
-            INFO("get_sfidx = %d\n",srslte_ue_sync_get_sfidx(&ue_sync_scc)); 
-            INFO("tti = %d\n",sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_scc)); 
+            INFO("get_sfidx = %d\n",srslte_ue_sync_get_sfidx(&ue_sync_pcc)); 
+            INFO("tti = %d\n",sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_pcc)); 
 
-            n = srslte_ue_dl_decode(&ue_dl_scc, 
+            n = srslte_ue_dl_decode(&ue_dl_pcc, 
                                     &sf_buffer_scc[prog_args.time_offset], 
                                     data, 
                                     sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_pcc)); 

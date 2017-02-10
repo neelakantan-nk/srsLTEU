@@ -730,8 +730,10 @@ int main(int argc, char **argv) {
       // MIB only in SF 0 
       srslte_pbch_mib_pack(&cell, sfn, bch_payload);
       if (sf_idx == 0) {
+        // TODO : comment the following line
         // srslte_pbch_encode(&pbch, bch_payload, slot1_symbols, nf%4);
-        srslte_pbch_encode(&pbch, bch_payload, slot1_symbols_pcc, nf%4);
+        
+       srslte_pbch_encode(&pbch, bch_payload, slot1_symbols_pcc, nf%4);
       }
 
       // PCFICH insertion for PCC (all SFs) 

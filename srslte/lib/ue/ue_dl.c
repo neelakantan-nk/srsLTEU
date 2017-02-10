@@ -195,6 +195,8 @@ int srslte_ue_dl_decode_fft_estimate(srslte_ue_dl_t *q, cf_t *input, uint32_t sf
   if (input && q && cfi && sf_idx < SRSLTE_NSUBFRAMES_X_FRAME) {
     
     /* Run FFT for all subframe data */
+    // save the FFT in sf_symbols, fft(input) = sf_symbols 
+    // XXX: is this correctley calculated for SCC?
     srslte_ofdm_rx_sf(&q->fft, input, q->sf_symbols);
     
     /* Correct SFO multiplying by complex exponential in the time domain */
@@ -218,6 +220,7 @@ int srslte_ue_dl_decode_estimate(srslte_ue_dl_t *q, uint32_t sf_idx, uint32_t *c
   if (q && cfi && sf_idx < SRSLTE_NSUBFRAMES_X_FRAME) {
     
     /* Get channel estimates for each port */
+    // XXX : How would this be calculated for SCC?
     srslte_chest_dl_estimate(&q->chest, q->sf_symbols, q->ce, sf_idx);
 
     /* First decode PCFICH and obtain CFI (Control format indicator) */
@@ -228,6 +231,7 @@ int srslte_ue_dl_decode_estimate(srslte_ue_dl_t *q, uint32_t sf_idx, uint32_t *c
       return SRSLTE_ERROR;
     }
 
+    // XXX : NOTE : SCC should care about the CFI
     INFO("Decoded CFI=%d with correlation %.2f, sf_idx=%d\n", *cfi, cfi_corr, sf_idx);
 
     if (srslte_regs_set_cfi(&q->regs, *cfi)) {
@@ -267,6 +271,7 @@ int srslte_ue_dl_decode_rnti(srslte_ue_dl_t *q, cf_t *input, uint8_t *data, uint
   }
 
   int found_dci = srslte_ue_dl_find_dl_dci(q, cfi, sf_idx, rnti, &dci_msg);   
+  INFO("found_dci %d\n", found_dci);
 
   if (found_dci == 1) {
     
@@ -356,7 +361,7 @@ static int dci_blind_search(srslte_ue_dl_t *q, dci_blind_search_t *search_space,
       } 
       INFO("crc_rem = %x, rnti = %x\n",crc_rem, rnti); 
       if (crc_rem == rnti) { 
-        INFO("Inside crc_rem = rnti block! rnti = %d \n",rnti);
+        INFO("Inside crc_rem = rnti block! rnti = %x \n",rnti);
         // If searching for Format1A but found Format0 save it for later 
         if (dci_msg->format == SRSLTE_DCI_FORMAT0 && search_space->format == SRSLTE_DCI_FORMAT1A) 
         {
@@ -453,7 +458,7 @@ static int find_dl_dci_type_crnti(srslte_ue_dl_t *q, uint32_t cfi, uint32_t sf_i
   dci_blind_search_t search_space; 
   dci_blind_search_t *current_ss = &search_space;
   
-  INFO("q->current_rnti = %d, rnti = %d \n",q->current_rnti,rnti);
+  INFO("q->current_rnti = %x, rnti = %x \n",q->current_rnti,rnti);
   INFO("cfi = %d, sf_idx = %d\n",cfi,sf_idx); 
 
   // Search UE-specific search space 
@@ -497,6 +502,7 @@ static int find_dl_dci_type_crnti(srslte_ue_dl_t *q, uint32_t cfi, uint32_t sf_i
 int srslte_ue_dl_find_dl_dci_type(srslte_ue_dl_t *q, uint32_t cfi, uint32_t sf_idx, 
                                   uint16_t rnti, srslte_rnti_type_t rnti_type, srslte_dci_msg_t *dci_msg)
 {  
+  INFO("rnti type = %d\n", rnti_type);
   if (rnti_type == SRSLTE_RNTI_SI || rnti_type == SRSLTE_RNTI_PCH || rnti_type == SRSLTE_RNTI_RAR) {
     return find_dl_dci_type_siprarnti(q, cfi, rnti, dci_msg);
   } else {
