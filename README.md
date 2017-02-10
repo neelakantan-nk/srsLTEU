@@ -1,9 +1,9 @@
-srsLTE
+srsLTEU
 ========
 
-[![Coverity Scan Build Status](https://scan.coverity.com/projects/10045/badge.svg)](https://scan.coverity.com/projects/10045)
-
 srsLTE is a free and open-source LTE library for SDR UE and eNodeB developed by SRS (www.softwareradiosystems.com). The library is highly modular with minimum inter-module or external dependencies. It is entirely written in C and, if available in the system, uses the acceleration library VOLK distributed in GNURadio. 
+
+We are using srsLTE as the base for LTE-U implementation.
 
 **srsLTE is used by srsUE, a full stack (PHY to IP) implementation of an LTE UE. srsUE is available at https://github.com/srslte/srsue**   
 
@@ -81,15 +81,6 @@ At the receiver run:
 lte/examples/pdsch_ue -r 1234 -f [frequency_in_Hz]
 ```
 
-At the transmitter console, it is possible to change the Modulation and Coding Scheme (MCS) by typing a new number (between 0 and 28) and pressing Enter. 
-
-
-The output at the receiver should look something similar to the following video. In this example, we removed the transmitter and receiver antennas in the middle of the demonstration, showing how reception is still possible (despite with some erros). 
-
-https://www.dropbox.com/s/txh1nuzdb0igq5n/demo_pbch.ogv
-
-![Screenshopt of the PBCH example output](pbch_capture.png "Screenshopt of the PBCH example output")
-
 * Video over Downlink PHY (eNodeB to UE)
 
 The previous example sends random bits to the UE. It is possible to open a TCP socket and stream video over the LTE PHY DL wireless connection. At the transmitter side, run the following command:  
@@ -116,7 +107,6 @@ avplay tcp://127.0.0.1:2001?listen -analyzeduration 100 -loglevel verbose
 ```
 to watch the video. 
 
-Support
-========
-
-Mailing list: http://www.softwareradiosystems.com/mailman/listinfo/srslte-users
+Running srsLTEU Examples
+========================
+to be added ...
