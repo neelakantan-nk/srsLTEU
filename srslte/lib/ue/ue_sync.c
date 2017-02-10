@@ -475,10 +475,11 @@ int srslte_ue_sync_get_buffer(srslte_ue_sync_t *q, cf_t **sf_symbols) {
 }
 
 // XXX : Adding this to process SCC
-int srslte_ue_sync_get_buffer_scc(srslte_ue_sync_t *p, srslte_ue_sync_t *q, cf_t **sf_symbols) {
+int srslte_ue_sync_get_buffer_scc(srslte_ue_sync_t *p, srslte_ue_sync_t *s, cf_t **sf_symbols_p, cf_t **sf_symbols_s) {
   int ret = srslte_ue_sync_zerocopy(p, p->input_buffer);
-  if (sf_symbols) {
-    *sf_symbols = q->input_buffer;
+  if (sf_symbols_p) {
+    *sf_symbols_p = p->input_buffer;
+    *sf_symbols_s = s->input_buffer;
   }
   return ret; 
 
@@ -494,6 +495,7 @@ int srslte_ue_sync_zerocopy(srslte_ue_sync_t *q, cf_t *input_buffer) {
   {
     
     if (q->file_mode) {
+      // If reading from a file
       int n = srslte_filesource_read(&q->file_source, input_buffer, q->sf_len);
       if (n < 0) {
         fprintf(stderr, "Error reading input file\n");
@@ -522,6 +524,7 @@ int srslte_ue_sync_zerocopy(srslte_ue_sync_t *q, cf_t *input_buffer) {
       INFO("Reading %d samples. sf_idx = %d\n", q->sf_len, q->sf_idx);
       ret = 1;
     } else {
+      // if getting from network port
       if (receive_samples(q, input_buffer)) {
         fprintf(stderr, "Error receiving samples\n");
         return SRSLTE_ERROR;

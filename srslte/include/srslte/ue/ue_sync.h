@@ -146,7 +146,8 @@ SRSLTE_API int srslte_ue_sync_get_buffer(srslte_ue_sync_t *q,
 // XXX : Adding this to process SCC
 SRSLTE_API int srslte_ue_sync_get_buffer_scc(srslte_ue_sync_t *p, 
                                          srslte_ue_sync_t *q,
-                                         cf_t **sf_symbols);
+                                         cf_t **sf_symbols_p,
+                                         cf_t **sf_symbols_s);
 
 SRSLTE_API void srslte_ue_sync_set_agc_period(srslte_ue_sync_t *q, 
                                               uint32_t period); 

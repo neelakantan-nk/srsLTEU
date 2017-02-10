@@ -680,8 +680,9 @@ int main(int argc, char **argv) {
     ret_pcc = srslte_ue_sync_get_buffer(&ue_sync_pcc, &sf_buffer_pcc);
     ret_scc = srslte_ue_sync_get_buffer(&ue_sync_scc, &sf_buffer_scc); 
     
-    // XXX : using the following resulted in half PCC throughput(?)
-    // ret_scc = srslte_ue_sync_get_buffer_scc(&ue_sync_pcc_bu, &ue_sync_scc, &sf_buffer_scc); 
+    // XXX : This single function should do the work of previous two
+    // uses primary data to get sync and copy the buffer for both
+    // ret_scc = srslte_ue_sync_get_buffer_scc(&ue_sync_pcc_bu, &ue_sync_scc, &sf_buffer_pcc, &sf_buffer_scc); 
 
     if (ret_pcc < 0) {
       fprintf(stderr, "Error calling srslte_ue_sync_work()\n");
