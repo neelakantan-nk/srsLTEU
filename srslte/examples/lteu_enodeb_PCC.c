@@ -740,7 +740,7 @@ int main(int argc, char **argv) {
       srslte_pcfich_encode(&pcfich, cfi, sf_symbols_pcc, sf_idx); 
 
       /* Transmit PDCCH + PDSCH only when there is data_scc to send */
-      if (net_port_scc > 0) {
+      if (net_port_pcc > 0) {
         // data_scc is available at input port to be sent
         send_data_pcc = net_packet_ready_pcc; 
         // Selectively disable the transmission on sec channel
