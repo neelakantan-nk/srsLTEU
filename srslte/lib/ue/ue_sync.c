@@ -476,10 +476,11 @@ int srslte_ue_sync_get_buffer(srslte_ue_sync_t *q, cf_t **sf_symbols) {
 
 // XXX : Adding this to process SCC
 int srslte_ue_sync_get_buffer_scc(srslte_ue_sync_t *p, srslte_ue_sync_t *s, cf_t **sf_symbols_p, cf_t **sf_symbols_s) {
-  int ret = srslte_ue_sync_zerocopy(p, p->input_buffer);
+  // int ret = srslte_ue_sync_zerocopy(p, p->input_buffer);
+  int ret = srslte_ue_sync_zerocopy(s, s->input_buffer);
   if (sf_symbols_p) {
-    // *sf_symbols_p = s->input_buffer;
-    *sf_symbols_p = p->input_buffer;
+    *sf_symbols_p = s->input_buffer;
+    // *sf_symbols_p = p->input_buffer;
     *sf_symbols_s = s->input_buffer;
   }
   return ret; 

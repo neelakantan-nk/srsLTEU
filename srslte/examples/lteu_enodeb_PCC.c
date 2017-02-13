@@ -739,13 +739,18 @@ int main(int argc, char **argv) {
       // PCFICH insertion for PCC (all SFs) 
       srslte_pcfich_encode(&pcfich, cfi, sf_symbols_pcc, sf_idx); 
 
+      /* Update DL resource allocation from control port */
+      if (update_control(sf_idx)) {
+        fprintf(stderr, "Error updating parameters from control port\n");
+      }
+
       /* Transmit PDCCH + PDSCH only when there is data_scc to send */
       if (net_port_pcc > 0) {
         // data_scc is available at input port to be sent
         send_data_pcc = net_packet_ready_pcc; 
         // Selectively disable the transmission on sec channel
         if (send_data_pcc) {
-          INFO("Transmitting packet on PCC\n",0);
+          INFO("Transmitting packet on PCC -------> \n",0);
         }
       } else {
         // TODO: Modify this correctly
@@ -764,12 +769,21 @@ int main(int argc, char **argv) {
       // ---------------- Secondary channel -------------------
       bzero(sf_buffer_scc, sizeof(cf_t) * sf_n_re); 
 
+      // XXX : following should be commented for SCC
+      // // Send PSS and SSS in both SF 0 and SF 5 of PCC; do not send any SS in SCC  
+      // if (sf_idx == 0 || sf_idx == 5) {
+      //   srslte_pss_put_slot(pss_signal, sf_buffer_scc, cell.nof_prb, SRSLTE_CP_NORM);
+      //   srslte_sss_put_slot(sf_idx ? sss_signal5 : sss_signal0, sf_buffer_scc, cell.nof_prb,
+      //       SRSLTE_CP_NORM);
+      // }
+
       // Reference signal insertion  
       if (sf_idx >= sf_start && sf_idx <= sf_end) {
         srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer_scc); 
       }
 
-      // // MIB only in SF 0 , TODO to be removed 
+      // XXX : following should be commented for SCC
+      // // MIB only in SF 0  
       // srslte_pbch_mib_pack(&cell, sfn, bch_payload);
       // if (sf_idx == 0) {
       //  srslte_pbch_encode(&pbch, bch_payload, slot1_symbols_scc, nf%4);
@@ -780,11 +794,6 @@ int main(int argc, char **argv) {
         srslte_pcfich_encode(&pcfich, cfi, sf_symbols_scc, sf_idx); 
       }        
 
-      /* Update DL resource allocation from control port */
-      if (update_control(sf_idx)) {
-        fprintf(stderr, "Error updating parameters from control port\n");
-      }
-
       /* Transmit PDCCH + PDSCH only when there is data_scc to send */
       if (net_port_scc > 0) {
         // data_scc is available at input port to be sent
@@ -794,7 +803,7 @@ int main(int argc, char **argv) {
           send_data_scc = false;
         }
         if (send_data_scc) {
-          INFO("Transmitting packet on SCC\n",0);
+          INFO("Transmitting packet on SCC ------> * \n",0);
         }
       } else {
         // TODO: Modify this correctly

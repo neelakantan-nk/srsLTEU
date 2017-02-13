@@ -758,42 +758,42 @@ int main(int argc, char **argv) {
             } 
              
             // --------------------- Secondary --------------------------
-            INFO("* ---- SCC : Attempting DL decode SFN=%d\n", sfn);
-            //FIXME: following fn tries to decode data even in off SFs (maybe correct)
+            // INFO("* ---- SCC : Attempting DL decode SFN=%d\n", sfn);
+            // //FIXME: following fn tries to decode data even in off SFs (maybe correct)
 
-            INFO("get_sfidx = %d\n",srslte_ue_sync_get_sfidx(&ue_sync_pcc)); 
-            INFO("tti = %d\n",sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_pcc)); 
+            // INFO("get_sfidx = %d\n",srslte_ue_sync_get_sfidx(&ue_sync_pcc)); 
+            // INFO("tti = %d\n",sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_pcc)); 
 
-            n = srslte_ue_dl_decode(&ue_dl_pcc, 
-                                    &sf_buffer_scc[prog_args.time_offset], 
-                                    data, 
-                                    sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_pcc)); 
-                                    // XXX:leaving _pcc here, this calculates tti.
+            // n = srslte_ue_dl_decode(&ue_dl_scc, 
+            //                         &sf_buffer_scc[prog_args.time_offset], 
+            //                         data, 
+            //                         sfn*10+srslte_ue_sync_get_sfidx(&ue_sync_pcc)); 
+            //                         // XXX:leaving _pcc here, this calculates tti.
           
-            if (n < 0) {
-              fprintf(stderr, "SCC : Error decoding UE DL\n");fflush(stdout);
-            } else if (n > 0) {
-              
-              /* Send data if socket active */
-              if (prog_args.net_port_scc > 0) {
-                srslte_netsink_write(&net_sink_scc, data, 1+(n-1)/8);
-              }
-              
-              #ifdef PRINT_CHANGE_SCHEDULIGN
-              if (ue_dl_scc.dl_dci.mcs_idx         != old_dl_dci.mcs_idx           || 
-                  memcmp(&ue_dl_scc.dl_dci.type0_alloc, &old_dl_dci.type0_alloc, sizeof(srslte_ra_type0_t)) ||
-                  memcmp(&ue_dl_scc.dl_dci.type1_alloc, &old_dl_dci.type1_alloc, sizeof(srslte_ra_type1_t)) ||
-                  memcmp(&ue_dl_scc.dl_dci.type2_alloc, &old_dl_dci.type2_alloc, sizeof(srslte_ra_type2_t)))
-              {
-                memcpy(&old_dl_dci, &ue_dl_scc.dl_dci, sizeof(srslte_ra_dl_dci_t));
-                fflush(stdout);
-                printf("Format: %s\n", srslte_dci_format_string(ue_dl_scc.dci_format));
-                srslte_ra_pdsch_fprint(stdout, &old_dl_dci, cell.nof_prb);
-                srslte_ra_dl_grant_fprint(stdout, &ue_dl_scc.pdsch_cfg.grant);
-              }
-              #endif
+            // if (n < 0) {
+            //   fprintf(stderr, "SCC : Error decoding UE DL\n");fflush(stdout);
+            // } else if (n > 0) {
+            //   
+            //   /* Send data if socket active */
+            //   if (prog_args.net_port_scc > 0) {
+            //     srslte_netsink_write(&net_sink_scc, data, 1+(n-1)/8);
+            //   }
+            //   
+            //   #ifdef PRINT_CHANGE_SCHEDULIGN
+            //   if (ue_dl_scc.dl_dci.mcs_idx         != old_dl_dci.mcs_idx           || 
+            //       memcmp(&ue_dl_scc.dl_dci.type0_alloc, &old_dl_dci.type0_alloc, sizeof(srslte_ra_type0_t)) ||
+            //       memcmp(&ue_dl_scc.dl_dci.type1_alloc, &old_dl_dci.type1_alloc, sizeof(srslte_ra_type1_t)) ||
+            //       memcmp(&ue_dl_scc.dl_dci.type2_alloc, &old_dl_dci.type2_alloc, sizeof(srslte_ra_type2_t)))
+            //   {
+            //     memcpy(&old_dl_dci, &ue_dl_scc.dl_dci, sizeof(srslte_ra_dl_dci_t));
+            //     fflush(stdout);
+            //     printf("Format: %s\n", srslte_dci_format_string(ue_dl_scc.dci_format));
+            //     srslte_ra_pdsch_fprint(stdout, &old_dl_dci, cell.nof_prb);
+            //     srslte_ra_dl_grant_fprint(stdout, &ue_dl_scc.pdsch_cfg.grant);
+            //   }
+            //   #endif
 
-            } 
+            // } 
             // ----------------------------------------------------------
             nof_trials++; 
             
