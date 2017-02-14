@@ -770,12 +770,12 @@ int main(int argc, char **argv) {
       bzero(sf_buffer_scc, sizeof(cf_t) * sf_n_re); 
 
       // XXX : following should be commented for SCC
-      // // Send PSS and SSS in both SF 0 and SF 5 of PCC; do not send any SS in SCC  
-      // if (sf_idx == 0 || sf_idx == 5) {
-      //   srslte_pss_put_slot(pss_signal, sf_buffer_scc, cell.nof_prb, SRSLTE_CP_NORM);
-      //   srslte_sss_put_slot(sf_idx ? sss_signal5 : sss_signal0, sf_buffer_scc, cell.nof_prb,
-      //       SRSLTE_CP_NORM);
-      // }
+      // Send PSS and SSS in both SF 0 and SF 5 of PCC; do not send any SS in SCC  
+      if (sf_idx == 0 || sf_idx == 5) {
+        srslte_pss_put_slot(pss_signal, sf_buffer_scc, cell.nof_prb, SRSLTE_CP_NORM);
+        srslte_sss_put_slot(sf_idx ? sss_signal5 : sss_signal0, sf_buffer_scc, cell.nof_prb,
+            SRSLTE_CP_NORM);
+      }
 
       // Reference signal insertion  
       if (sf_idx >= sf_start && sf_idx <= sf_end) {
@@ -783,11 +783,11 @@ int main(int argc, char **argv) {
       }
 
       // XXX : following should be commented for SCC
-      // // MIB only in SF 0  
-      // srslte_pbch_mib_pack(&cell, sfn, bch_payload);
-      // if (sf_idx == 0) {
-      //  srslte_pbch_encode(&pbch, bch_payload, slot1_symbols_scc, nf%4);
-      // }
+      // MIB only in SF 0  
+      srslte_pbch_mib_pack(&cell, sfn, bch_payload);
+      if (sf_idx == 0) {
+       srslte_pbch_encode(&pbch, bch_payload, slot1_symbols_scc, nf%4);
+      }
 
       // PCFICH insertion for specific SFs
       if (sf_idx >= sf_start && sf_idx <= sf_end) {
