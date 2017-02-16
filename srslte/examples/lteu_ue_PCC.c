@@ -284,7 +284,9 @@ extern float mean_exec_time;
 enum receiver_state { DECODE_MIB, DECODE_PDSCH} state; 
 
 srslte_ue_dl_t ue_dl_pcc; 
+srslte_ue_dl_t ue_dl_scc; 
 srslte_ue_sync_t ue_sync_pcc; 
+srslte_ue_sync_t ue_sync_scc; 
 prog_args_t prog_args; 
 
 uint32_t sfn = 0; // system frame number
@@ -435,9 +437,8 @@ int main(int argc, char **argv) {
     srslte_rf_flush_buffer(&rf_scc);    
   }
 #endif
-  // XXX : So far checked
   /* If reading from file, go straight to PDSCH decoding. Otherwise, decode MIB first */
-  if (prog_args.input_file_name) {
+  if (prog_args.input_file_name) { // XXX : IGNORE this, just reading from file
     /* preset cell configuration */
     cell.id = prog_args.file_cell_id; 
     cell.cp = SRSLTE_CP_NORM; 
@@ -459,6 +460,10 @@ int main(int argc, char **argv) {
       fprintf(stderr, "Error initiating ue_sync_pcc\n");
       exit(-1); 
     }
+    if (srslte_ue_sync_init(&ue_sync_scc, cell, srslte_rf_recv_wrapper, (void*) &rf_scc)) {
+      fprintf(stderr, "Error initiating ue_sync_scc\n");
+      exit(-1); 
+    }
 #endif
   }
 
@@ -468,16 +473,20 @@ int main(int argc, char **argv) {
   }    
 
   if (srslte_ue_dl_init(&ue_dl_pcc, cell)) {  // This is the User RNTI
-    fprintf(stderr, "Error initiating UE downlink processing module\n");
+    fprintf(stderr, "Error initiating UE PCC downlink processing module\n");
+    exit(-1);
+  }
+  if (srslte_ue_dl_init(&ue_dl_scc, cell)) {  // This is the User RNTI
+    fprintf(stderr, "Error initiating UE SCC downlink processing module\n");
     exit(-1);
   }
   
   /* Configure downlink receiver for the SI-RNTI since will be the only one we'll use */
   srslte_ue_dl_set_rnti(&ue_dl_pcc, prog_args.rnti); 
+  srslte_ue_dl_set_rnti(&ue_dl_scc, prog_args.rnti); 
   
   /* Initialize subframe counter */
   sf_cnt = 0;
-
 
 #ifndef DISABLE_GRAPHICS
   if (!prog_args.disable_plots) {
@@ -489,8 +498,10 @@ int main(int argc, char **argv) {
 #ifndef DISABLE_RF
   if (!prog_args.input_file_name) {
     srslte_rf_start_rx_stream(&rf_pcc);    
+    srslte_rf_start_rx_stream(&rf_scc);    
   }
 #endif
+// XXX : CHECK
     
   // Variables for measurements 
   uint32_t nframes=0;
@@ -500,6 +511,7 @@ int main(int argc, char **argv) {
 #ifndef DISABLE_RF
   if (prog_args.rf_gain < 0) {
     srslte_ue_sync_start_agc(&ue_sync_pcc, srslte_rf_set_rx_gain_th_wrapper_, cell_detect_config.init_agc);
+    srslte_ue_sync_start_agc(&ue_sync_scc, srslte_rf_set_rx_gain_th_wrapper_, cell_detect_config.init_agc);
   }
 #endif
 #ifdef PRINT_CHANGE_SCHEDULIGN
@@ -508,9 +520,11 @@ int main(int argc, char **argv) {
 #endif
   
   ue_sync_pcc.correct_cfo = !prog_args.disable_cfo;
+  ue_sync_scc.correct_cfo = !prog_args.disable_cfo;
   
   // Set initial CFO for ue_sync_pcc
   srslte_ue_sync_set_cfo(&ue_sync_pcc, cfo); 
+  srslte_ue_sync_set_cfo(&ue_sync_scc, cfo); 
   
   srslte_pbch_decode_reset(&ue_mib.pbch);
             
@@ -520,7 +534,7 @@ int main(int argc, char **argv) {
     
     ret = srslte_ue_sync_get_buffer(&ue_sync_pcc, &sf_buffer_pcc);
     if (ret < 0) {
-      fprintf(stderr, "Error calling srslte_ue_sync_work()\n");
+      fprintf(stderr, "Error calling srslte_ue_sync_get_buffer()\n");
     }
 
 #ifdef CORRECT_SAMPLE_OFFSET
