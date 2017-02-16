@@ -327,11 +327,26 @@ int main(int argc, char **argv) {
 #ifndef DISABLE_RF
   if (!prog_args.input_file_name) {
     
+    //----------- Primary channel
     printf("Opening rf_pcc device...\n");
     if (srslte_rf_open(&rf_pcc, prog_args.rf_args_pcc)) {
       fprintf(stderr, "Error opening rf_pcc\n");
       exit(-1);
     }
+    /* Set receiver gain */
+    if (prog_args.rf_gain > 0) {
+      srslte_rf_set_rx_gain(&rf_pcc, prog_args.rf_gain);      
+    } else {
+      printf("Starting AGC thread...\n");
+      if (srslte_rf_start_gain_thread(&rf_pcc, false)) {
+        fprintf(stderr, "Error opening rf_pcc\n");
+        exit(-1);
+      }
+      srslte_rf_set_rx_gain(&rf_pcc, 50);      
+      cell_detect_config.init_agc = 50; 
+    }
+
+    //----------- Secondary channel
     printf("Opening rf_scc device...\n");
     if (srslte_rf_open(&rf_scc, prog_args.rf_args_scc)) {
       fprintf(stderr, "Error opening rf_scc\n");
@@ -339,21 +354,15 @@ int main(int argc, char **argv) {
     }
     /* Set receiver gain */
     if (prog_args.rf_gain > 0) {
-      srslte_rf_set_rx_gain(&rf_pcc, prog_args.rf_gain);      
       srslte_rf_set_rx_gain(&rf_scc, prog_args.rf_gain);      
     } else {
       printf("Starting AGC thread...\n");
-      if (srslte_rf_start_gain_thread(&rf_pcc, false)) {
-        fprintf(stderr, "Error opening rf_pcc\n");
-        exit(-1);
-      }
       if (srslte_rf_start_gain_thread(&rf_scc, false)) {
         fprintf(stderr, "Error opening rf_scc\n");
         exit(-1);
       }
-      srslte_rf_set_rx_gain(&rf_pcc, 50);      
       srslte_rf_set_rx_gain(&rf_scc, 50);      
-      cell_detect_config.init_agc = 50; 
+      // cell_detect_config.init_agc = 50; 
     }
     
     sigset_t sigset;
@@ -388,7 +397,6 @@ int main(int argc, char **argv) {
     } while (ret == 0 && !go_exit); 
     /* ----------------- Cell search is over ----------------- */
     
-    // XXX: shouldn't this be earlier
     if (go_exit) {
       exit(0);
     }
@@ -442,21 +450,13 @@ int main(int argc, char **argv) {
       prog_args.input_file_name, prog_args.file_offset_time, prog_args.file_offset_freq)) {
       fprintf(stderr, "Error initiating ue_sync_pcc\n");
       exit(-1); 
-    
-    if (srslte_ue_sync_init_file(&ue_sync_scc, prog_args.file_nof_prb, 
-      prog_args.input_file_name, prog_args.file_offset_time, prog_args.file_offset_freq)) {
-      fprintf(stderr, "Error initiating ue_sync_scc\n");
-      exit(-1); 
     }
+    
 
   } else {
 #ifndef DISABLE_RF
     if (srslte_ue_sync_init(&ue_sync_pcc, cell, srslte_rf_recv_wrapper, (void*) &rf_pcc)) {
       fprintf(stderr, "Error initiating ue_sync_pcc\n");
-      exit(-1); 
-    }
-    if (srslte_ue_sync_init(&ue_sync_scc, cell, srslte_rf_recv_wrapper, (void*) &rf_scc)) {
-      fprintf(stderr, "Error initiating ue_sync_scc\n");
       exit(-1); 
     }
 #endif
