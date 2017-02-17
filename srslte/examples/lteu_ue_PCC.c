@@ -294,7 +294,7 @@ cf_t *sf_buffer_pcc = NULL;
 srslte_netsink_t net_sink_pcc, net_sink_signal; 
 
 int main(int argc, char **argv) {
-  int ret; 
+  int ret, ret_pcc, ret_scc; 
   srslte_cell_t cell;  
   int64_t sf_cnt;
   srslte_ue_mib_t ue_mib; 
@@ -456,6 +456,8 @@ int main(int argc, char **argv) {
 
   } else {
 #ifndef DISABLE_RF
+    // XXX NOTE : at this point rf interface can be chose to receive data from.
+    // ue_sync_t variable is assigned a rf stream (rf interface)
     if (srslte_ue_sync_init(&ue_sync_pcc, cell, srslte_rf_recv_wrapper, (void*) &rf_pcc)) {
       fprintf(stderr, "Error initiating ue_sync_pcc\n");
       exit(-1); 
@@ -532,18 +534,28 @@ int main(int argc, char **argv) {
   /* Main loop */
   while (!go_exit && (sf_cnt < prog_args.nof_subframes || prog_args.nof_subframes == -1)) {
     
-    ret = srslte_ue_sync_get_buffer(&ue_sync_pcc, &sf_buffer_pcc);
-    if (ret < 0) {
+    ret_pcc = srslte_ue_sync_get_buffer(&ue_sync_pcc, &sf_buffer_pcc);
+    if (ret_pcc < 0) {
       fprintf(stderr, "Error calling srslte_ue_sync_get_buffer()\n");
     }
 
+    ret_scc = srslte_ue_sync_get_buffer(&ue_sync_scc, &sf_buffer_scc);
+    if (ret_scc < 0) {
+      fprintf(stderr, "Error calling srslte_ue_sync_get_buffer()\n");
+    }
+
+    if (ret_pcc == 1 && ret_scc == 1) {
+      // XXX NOTE : in ideal conditions these two should be same
+      printf("Peak for PCC found at %d\n", ue_sync_pcc->peak_idx);
+      printf("Peak for SCC found at %d\n", ue_sync_scc->peak_idx);
+    }
 #ifdef CORRECT_SAMPLE_OFFSET
     float sample_offset = (float) srslte_ue_sync_get_last_sample_offset(&ue_sync_pcc)+srslte_ue_sync_get_sfo(&ue_sync_pcc)/1000; 
     srslte_ue_dl_set_sample_offset(&ue_dl_pcc, sample_offset);
 #endif
     
     /* srslte_ue_sync_get_buffer returns 1 if successfully read 1 aligned subframe */
-    if (ret == 1) {
+    if (ret_pcc == 1) {
       switch (state) {
         case DECODE_MIB:
           if (srslte_ue_sync_get_sfidx(&ue_sync_pcc) == 0) {
@@ -658,7 +670,7 @@ int main(int argc, char **argv) {
         }
       }
       #endif
-    } else if (ret == 0) {
+    } else if (ret_pcc == 0) {
       printf("Finding PSS... Peak: %8.1f, FrameCnt: %d, State: %d\r", 
         srslte_sync_get_peak_value(&ue_sync_pcc.sfind), 
         ue_sync_pcc.frame_total_cnt, ue_sync_pcc.state);      

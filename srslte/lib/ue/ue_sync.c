@@ -496,7 +496,7 @@ int srslte_ue_sync_zerocopy(srslte_ue_sync_t *q, cf_t *input_buffer) {
       input_buffer != NULL)
   {
     
-    if (q->file_mode) {
+    if (q->file_mode) { //XXX :Ignore this part
       // If reading from a file
       int n = srslte_filesource_read(&q->file_source, input_buffer, q->sf_len);
       if (n < 0) {
