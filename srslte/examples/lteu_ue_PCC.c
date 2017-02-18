@@ -291,6 +291,7 @@ prog_args_t prog_args;
 
 uint32_t sfn = 0; // system frame number
 cf_t *sf_buffer_pcc = NULL; 
+cf_t *sf_buffer_scc = NULL; 
 srslte_netsink_t net_sink_pcc, net_sink_signal; 
 
 int main(int argc, char **argv) {
@@ -534,20 +535,26 @@ int main(int argc, char **argv) {
   /* Main loop */
   while (!go_exit && (sf_cnt < prog_args.nof_subframes || prog_args.nof_subframes == -1)) {
     
+    INFO("-------------- Decoding begins -------------- \n", ue_sync_pcc.peak_idx);
     ret_pcc = srslte_ue_sync_get_buffer(&ue_sync_pcc, &sf_buffer_pcc);
     if (ret_pcc < 0) {
       fprintf(stderr, "Error calling srslte_ue_sync_get_buffer()\n");
     }
-
     ret_scc = srslte_ue_sync_get_buffer(&ue_sync_scc, &sf_buffer_scc);
     if (ret_scc < 0) {
       fprintf(stderr, "Error calling srslte_ue_sync_get_buffer()\n");
     }
 
-    if (ret_pcc == 1 && ret_scc == 1) {
+    // ret_pcc = srslte_ue_sync_get_buffer_scc(&ue_sync_pcc, &ue_sync_scc, &sf_buffer_pcc, &sf_buffer_scc);
+
+    if (ret_pcc == 1) {
       // XXX NOTE : in ideal conditions these two should be same
-      printf("Peak for PCC found at %d\n", ue_sync_pcc->peak_idx);
-      printf("Peak for SCC found at %d\n", ue_sync_scc->peak_idx);
+      INFO("**Peak for PCC found at %d\n", ue_sync_pcc.peak_idx);
+      INFO("**Peak for SCC found at %d\n", ue_sync_scc.peak_idx);
+      INFO("** PCC at %d\n", ue_sync_pcc.frame_total_cnt);
+      INFO("** SCC at %d\n", ue_sync_scc.frame_total_cnt);
+      INFO("** PCC at %d\n", ue_sync_pcc.nof_recv_sf);
+      INFO("** SCC at %d\n", ue_sync_scc.nof_recv_sf);
     }
 #ifdef CORRECT_SAMPLE_OFFSET
     float sample_offset = (float) srslte_ue_sync_get_last_sample_offset(&ue_sync_pcc)+srslte_ue_sync_get_sfo(&ue_sync_pcc)/1000; 
