@@ -261,6 +261,7 @@ int srslte_ue_dl_decode_rnti(srslte_ue_dl_t *q, cf_t *input, uint8_t *data, uint
   
   uint32_t sf_idx = tti%10;  
   
+  //FIXME After this value of cfi is coming wrong
   if ((ret = srslte_ue_dl_decode_fft_estimate(q, input, sf_idx, &cfi)) < 0) {
     return ret; 
   }

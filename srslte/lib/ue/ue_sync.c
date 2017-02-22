@@ -470,6 +470,7 @@ int srslte_ue_sync_get_buffer(srslte_ue_sync_t *q, cf_t **sf_symbols) {
   if (sf_symbols) {
     *sf_symbols = q->input_buffer;
   }
+  // INFO("\n%d Mean offset\n", (int) q->mean_sample_offset);
   return ret; 
 
 }
@@ -481,6 +482,14 @@ int srslte_ue_sync_get_buffer_scc(srslte_ue_sync_t *p, srslte_ue_sync_t *s, cf_t
   if (sf_symbols_p) {
     // *sf_symbols_p = s->input_buffer;
     *sf_symbols_p = p->input_buffer;
+    if (receive_samples(s, s->input_buffer)) {
+      fprintf(stderr, "Error receiving samples\n");
+      return SRSLTE_ERROR;
+    }
+    // s->frame_total_cnt = p->frame_total_cnt;
+    // s->frame_ok_cnt = p->frame_ok_cnt;
+    // s->frame_no_cnt = p->frame_no_cnt;
+    // s->sf_idx = p->sf_idx;
     *sf_symbols_s = s->input_buffer;
   }
   return ret; 

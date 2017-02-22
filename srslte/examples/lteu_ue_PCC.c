@@ -536,31 +536,57 @@ int main(int argc, char **argv) {
   while (!go_exit && (sf_cnt < prog_args.nof_subframes || prog_args.nof_subframes == -1)) {
     
     INFO("-------------- Decoding begins -------------- \n", ue_sync_pcc.peak_idx);
-    ret_pcc = srslte_ue_sync_get_buffer(&ue_sync_pcc, &sf_buffer_pcc);
+    // ret_pcc = srslte_ue_sync_get_buffer(&ue_sync_pcc, &sf_buffer_pcc);
+    // if (ret_pcc < 0) {
+    //   fprintf(stderr, "Error calling srslte_ue_sync_get_buffer()\n");
+    // }
+    // ret_scc = srslte_ue_sync_get_buffer(&ue_sync_scc, &sf_buffer_scc);
+    // if (ret_scc < 0) {
+    //   fprintf(stderr, "Error calling srslte_ue_sync_get_buffer()\n");
+    // }
+    // INFO("**** mean_sample_offset %d and %d\n", ue_sync_pcc.mean_sample_offset, ue_sync_scc.mean_sample_offset);
+
+    // FIXME : This function should handle both primary and secondary channel
+    //ret_pcc = srslte_ue_sync_get_buffer_scc(&ue_sync_pcc, &ue_sync_scc, &sf_buffer_pcc, &sf_buffer_scc);
+    ret_pcc = srslte_ue_sync_get_buffer_scc(&ue_sync_scc, &ue_sync_pcc, &sf_buffer_scc, &sf_buffer_pcc);
     if (ret_pcc < 0) {
       fprintf(stderr, "Error calling srslte_ue_sync_get_buffer()\n");
-    }
-    ret_scc = srslte_ue_sync_get_buffer(&ue_sync_scc, &sf_buffer_scc);
-    if (ret_scc < 0) {
-      fprintf(stderr, "Error calling srslte_ue_sync_get_buffer()\n");
-    }
-
-    // ret_pcc = srslte_ue_sync_get_buffer_scc(&ue_sync_pcc, &ue_sync_scc, &sf_buffer_pcc, &sf_buffer_scc);
-
-    if (ret_pcc == 1) {
-      // XXX NOTE : in ideal conditions these two should be same
-      INFO("**Peak for PCC found at %d\n", ue_sync_pcc.peak_idx);
-      INFO("**Peak for SCC found at %d\n", ue_sync_scc.peak_idx);
-      INFO("** PCC at %d\n", ue_sync_pcc.frame_total_cnt);
-      INFO("** SCC at %d\n", ue_sync_scc.frame_total_cnt);
-      INFO("** PCC at %d\n", ue_sync_pcc.nof_recv_sf);
-      INFO("** SCC at %d\n", ue_sync_scc.nof_recv_sf);
     }
 #ifdef CORRECT_SAMPLE_OFFSET
     float sample_offset = (float) srslte_ue_sync_get_last_sample_offset(&ue_sync_pcc)+srslte_ue_sync_get_sfo(&ue_sync_pcc)/1000; 
     srslte_ue_dl_set_sample_offset(&ue_dl_pcc, sample_offset);
 #endif
-    
+
+    if (ret_pcc == 1) {
+      // XXX NOTE : in ideal conditions these two should be same
+      INFO("** Peak found at %d and %d\n", ue_sync_pcc.peak_idx, ue_sync_scc.peak_idx);
+      INFO("** frame length %d and %d\n", ue_sync_pcc.frame_len, ue_sync_scc.frame_len);
+      INFO("** fft %d and %d\n", ue_sync_pcc.fft_size, ue_sync_scc.fft_size);
+      INFO("** frame count %d and %d\n", ue_sync_pcc.frame_total_cnt, ue_sync_scc.frame_total_cnt);
+      INFO("** frame ok count %d and %d\n", ue_sync_pcc.frame_ok_cnt, ue_sync_scc.frame_ok_cnt);
+      INFO("** frame no count %d and %d\n", ue_sync_pcc.frame_no_cnt, ue_sync_scc.frame_no_cnt);
+      INFO("** nof_recv_sf %d and %d\n", ue_sync_pcc.nof_recv_sf, ue_sync_scc.nof_recv_sf);
+      INFO("** nof_avg_ff %d and %d\n", ue_sync_pcc.nof_avg_find_frames, ue_sync_scc.nof_avg_find_frames);
+      INFO("** frame find count %d and %d\n", ue_sync_pcc.frame_find_cnt, ue_sync_scc.frame_find_cnt);
+      INFO("** sf len %d and %d\n", ue_sync_pcc.sf_len, ue_sync_scc.sf_len);
+      INFO("** sfidx %d and %d\n", ue_sync_pcc.sf_idx, ue_sync_scc.sf_idx);
+              // XXX REMOVE *********************
+              ue_sync_pcc.sf_idx = ue_sync_scc.sf_idx;
+
+      INFO("** frame number %d and %d\n", ue_sync_pcc.frame_number, ue_sync_scc.frame_number);
+      INFO("** correct cfo %d and %d\n", ue_sync_pcc.correct_cfo, ue_sync_scc.correct_cfo);
+      INFO("** next_rf_sample_offset %d and %d\n", ue_sync_pcc.next_rf_sample_offset, ue_sync_scc.next_rf_sample_offset);
+      INFO("** last_sample_offset %d and %d\n", ue_sync_pcc.last_sample_offset, ue_sync_scc.last_sample_offset);
+      INFO("** mean_sample_offset %d and %d\n", ue_sync_pcc.mean_sample_offset, ue_sync_scc.mean_sample_offset);
+      INFO("** mean_sfo %d and %d\n", ue_sync_pcc.mean_sfo, ue_sync_scc.mean_sfo);
+      INFO("** state %d and %d\n", ue_sync_pcc.state, ue_sync_scc.state);
+      INFO("** sfo_ema %d and %d\n", ue_sync_pcc.sfo_ema, ue_sync_scc.sfo_ema);
+      // ue_sync_pcc.frame_total_cnt = ue_sync_scc.frame_total_cnt;
+      // ue_sync_pcc.frame_ok_cnt = ue_sync_scc.frame_ok_cnt;
+      // ue_sync_pcc.frame_no_cnt = ue_sync_scc.frame_no_cnt;
+      // ue_sync_pcc.sf_idx = ue_sync_scc.sf_idx;
+    }
+
     /* srslte_ue_sync_get_buffer returns 1 if successfully read 1 aligned subframe */
     if (ret_pcc == 1) {
       switch (state) {
@@ -591,7 +617,7 @@ int main(int argc, char **argv) {
             }
           }
           if (decode_pdsch) {            
-            INFO("Attempting DL decode SFN=%d\n", sfn);
+            INFO("Attempting DL decode SFN=%d, sfid=%d\n", sfn,srslte_ue_sync_get_sfidx(&ue_sync_pcc));
             n = srslte_ue_dl_decode(&ue_dl_pcc, 
                                     &sf_buffer_pcc[prog_args.time_offset], 
                                     data, 
