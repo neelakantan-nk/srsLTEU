@@ -709,6 +709,8 @@ int main(int argc, char **argv) {
 #ifndef DISABLE_RF
   bool start_of_burst = true; 
 #endif
+  // time_spec_t uhd_tstamp;
+  srslte_timestamp_t tstamp; 
   
   while ((nf < nof_frames || nof_frames == -1) && !go_exit) {
     for (sf_idx = 0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1); sf_idx++) {
@@ -906,13 +908,17 @@ int main(int argc, char **argv) {
       } else {
 #ifndef DISABLE_RF
         // FIXME
+        //uhd_tstamp = get_time_now();
+        srslte_rf_get_time(&rf, &tstamp.full_secs, &tstamp.frac_secs);
         float norm_factor = (float) cell.nof_prb/15/sqrtf(pdsch_cfg.grant.nof_prb);
 
         srslte_vec_sc_prod_cfc(output_buffer_pcc, rf_amp_pcc*norm_factor, output_buffer_pcc, SRSLTE_SF_LEN_PRB(cell.nof_prb));
         srslte_rf_send2(&rf_pcc, output_buffer_pcc, sf_n_samples, true, start_of_burst, false);
+        // srslte_rf_send_timed2(&rf_pcc, output_buffer_pcc, sf_n_samples, tstamp.full_secs, tstamp.frac_secs, start_of_burst, false);
 
         srslte_vec_sc_prod_cfc(output_buffer_scc, rf_amp*norm_factor, output_buffer_scc, SRSLTE_SF_LEN_PRB(cell.nof_prb));
         srslte_rf_send2(&rf, output_buffer_scc, sf_n_samples, true, start_of_burst, false);
+        // srslte_rf_send_timed2(&rf, output_buffer_scc, sf_n_samples, tstamp.full_secs, tstamp.frac_secs, start_of_burst, false);
 
         start_of_burst=false; 
 #endif
