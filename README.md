@@ -49,7 +49,7 @@ Download & Install Instructions
 
 Download and build srsLTE: 
 ```
-git clone https://github.com/r4tn3sh/srsLTEU.git
+git clone https://github.com/neelakantan-nk/srsLTEU.git
 cd srsLTE
 mkdir build
 cd build
