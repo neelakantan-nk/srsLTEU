@@ -88,6 +88,9 @@ srslte_ra_dl_dci_t ra_dl;
 cf_t *sf_buffer = NULL, *output_buffer = NULL;
 int sf_n_re, sf_n_samples;
 
+int sf_start = 0; //Default first active SF 
+int sf_end = 10; //Default last active SF 
+
 pthread_t net_thread; 
 void *net_thread_fnc(void *arg);
 sem_t net_sem;
@@ -105,6 +108,8 @@ void usage(char *prog) {
   printf("\t-a RF args [Default %s]\n", rf_args);
   printf("\t-l RF amplitude [Default %.2f]\n", rf_amp);
   printf("\t-g RF TX gain [Default %.2f dB]\n", rf_gain);
+  printf("\t-s First active Sub Frame [Default %d]\n", sf_start); 
+  printf("\t-e Last active Sub Frame [Default %d]\n", sf_end); 
   printf("\t-f RF TX frequency [Default %.1f MHz]\n", rf_freq / 1000000);
 #else
   printf("\t   RF is disabled.\n");
@@ -120,7 +125,7 @@ void usage(char *prog) {
 
 void parse_args(int argc, char **argv) {
   int opt;
-  while ((opt = getopt(argc, argv, "aglfmoncpvu")) != -1) {
+  while ((opt = getopt(argc, argv, "aglfmosencpvu")) != -1) {
     switch (opt) {
     case 'a':
       rf_args = argv[optind];
@@ -137,6 +142,12 @@ void parse_args(int argc, char **argv) {
     case 'o':
       output_file_name = argv[optind];
       break;
+    case 's': 
+      sf_start = atoi(argv[optind]);
+      break;
+    case 'e': 
+      sf_end = atoi(argv[optind]);
+      break; 
     case 'm':
       mcs_idx = atoi(argv[optind]);
       break;
@@ -575,7 +586,7 @@ int main(int argc, char **argv) {
 
       // Assuming transmissions in SF 3 and 4 are active 
       // Reference signal insertion  
-      if (sf_idx == 3 || sf_idx == 4) {
+      if (sf_idx >= sf_start && sf_idx <= sf_end) {
       srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer); 
       }
 
@@ -586,7 +597,7 @@ int main(int argc, char **argv) {
       }
 
       // PCFICH insertion 
-      if (sf_idx == 3 || sf_idx == 4) {
+      if (sf_idx >= sf_start && sf_idx <= sf_end) {
       srslte_pcfich_encode(&pcfich, cfi, sf_symbols, sf_idx); 
       }        
 
@@ -599,13 +610,16 @@ int main(int argc, char **argv) {
       if (net_port > 0) {
         //send_data = net_packet_ready; 
         send_data = false; 
-        if (sf_idx == 3 || sf_idx == 4) { //transmit only in 3rd and 7th sub frames
+        if (sf_idx >= sf_start && sf_idx <= sf_end) { 
          send_data = true; 
-         INFO("Inside sf_id block!!\n",0); 
+         //INFO("Inside sf_id block!!\n",0); 
          } 
-        else { 
+        /*if (sf_idx == 0) { 
+          send_data = true; 
+        }*/
+        /*else { 
         send_data = false; 
-        } 
+        }*/ 
         if (send_data) {
           INFO("Transmitting packet\n",0);
         }
@@ -615,7 +629,7 @@ int main(int argc, char **argv) {
           data[i] = rand()%256;
         }
         /* Uncomment this to transmit on sf 0 and 5 only  */
-        if (sf_idx == 1) {
+        if (sf_idx == 0 || (sf_idx >= sf_start && sf_idx <= sf_end)) {
           send_data = true; 
         } else {
           send_data = false;           
