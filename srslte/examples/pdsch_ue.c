@@ -40,7 +40,6 @@
 #include "srslte/srslte.h"
 
 #define ENABLE_AGC_DEFAULT
-#define DISABLE_GRAPHICS
 
 #ifndef DISABLE_RF
 #include "srslte/rf/rf.h"
@@ -343,7 +342,6 @@ int main(int argc, char **argv) {
     srslte_rf_set_rx_freq(&rf, prog_args.rf_freq);
     srslte_rf_rx_wait_lo_locked(&rf);
 
-    /* -------------- Start looking for cell -------------- */
     uint32_t ntrial=0; 
     do {
       ret = rf_search_and_decode_mib(&rf, &cell_detect_config, prog_args.force_N_id_2, &cell, &cfo);
@@ -354,13 +352,10 @@ int main(int argc, char **argv) {
         printf("Cell not found after %d trials. Trying again (Press Ctrl+C to exit)\n", ntrial++);
       }      
     } while (ret == 0 && !go_exit); 
-    /* ----------------- Cell search is over ----------------- */
     
-    // XXX: shouldn't this be earlier
     if (go_exit) {
       exit(0);
     }
-
     /* set sampling frequency */
     int srate = srslte_sampling_freq_hz(cell.nof_prb);    
     if (srate != -1) {  

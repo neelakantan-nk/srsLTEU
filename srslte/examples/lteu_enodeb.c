@@ -89,7 +89,7 @@ cf_t *sf_buffer = NULL, *output_buffer = NULL;
 int sf_n_re, sf_n_samples;
 
 int sf_start = 0; //Default first active SF 
-int sf_end = 10; //Default last active SF 
+int sf_end = 9; //Default last active SF 
 
 pthread_t net_thread; 
 void *net_thread_fnc(void *arg);
