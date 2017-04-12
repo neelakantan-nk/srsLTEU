@@ -32,7 +32,9 @@
 #include <sys/select.h>
 #include <pthread.h>
 #include <semaphore.h>
-#include <signal.h>
+#include <signal.h> 
+#include <math.h>
+#include <time.h> 
 
 #include "srslte/srslte.h"
 
@@ -577,8 +579,21 @@ int main(int argc, char **argv) {
     for (sf_idx = 0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1); sf_idx++) {
       bzero(sf_buffer, sizeof(cf_t) * sf_n_re);
 
+      FILE *myfile; 
+      double on_duration; 
+      
+      myfile=fopen("store_on_duration.txt", "r");
+      fscanf(myfile,"%lf",&on_duration); 
+
+      on_duration = int(on_duration*(pow(10,3)));   //on_duration converted to ms 
+      
+      int no_of_off_frames = on_duration/10;    //as the size of LTE frame is 10 ms 
+
+      sf_start = 0; 
+      sf_end = sf_start + no_of_off_frames; 
+      
       // Send PSS and SSS only in zeroth sub frame - LTE standards mandate transmitting in SF 5 as well 
-      if (sf_idx == 0) {
+      if (sf_idx == 0 || sf_idx == 5) {
         srslte_pss_put_slot(pss_signal, sf_buffer, cell.nof_prb, SRSLTE_CP_NORM);
         srslte_sss_put_slot(sf_idx ? sss_signal5 : sss_signal0, sf_buffer, cell.nof_prb,
             SRSLTE_CP_NORM);
@@ -629,7 +644,7 @@ int main(int argc, char **argv) {
           data[i] = rand()%256;
         }
         /* Uncomment this to transmit on sf 0 and 5 only  */
-        if (sf_idx == 0 || (sf_idx >= sf_start && sf_idx <= sf_end)) {
+        if (sf_idx != 0 && sf_idx != 5) {
           send_data = true; 
         } else {
           send_data = false;           
