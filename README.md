@@ -95,18 +95,13 @@ The argument -u 2000 will open port 2000 for listening for TCP connections. Set 
 lte/examples/pdsch_ue -r 1234 -u 2001 -U 127.0.0.1 -f [frequency_in_Hz]
 ```
 
-The arguments -u 2001 -U 127.0.0.1 will forward the data that was injected at the eNodeB to address:port indicated by the argument. Once you have the system running, you can transmit some useful data, like a video stream. At the transmitter side, run:  
+The arguments -u 2000 -U 127.0.0.1 will forward any useful data stream, like a video file. At the transmitter side, run:  
+```
+avconv -i /root/Sample_movie.mov -c:v libx264 -f mpegts tcp://127.0.0.1:2000
+```
+to transfer a video file 'Sample_movie' through the local host port 2000. At the receiver, run: 
 
 ```
-avconv -f video4linux2 -i /dev/video0 -c:v mp4 -f mpegts tcp://127.0.0.1:2000 
+avplay tcp://127.0.0.1:5001?listen 
 ```
-to stream the video captured from the webcam throught the local host port 2000. At the receiver, run: 
-
-```
-avplay tcp://127.0.0.1:2001?listen -analyzeduration 100 -loglevel verbose
-```
-to watch the video. 
-
-Running srsLTEU Examples
-========================
-to be added ...
+to watch the video through the default port 5001. 
