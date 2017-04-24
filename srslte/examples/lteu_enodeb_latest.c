@@ -90,8 +90,9 @@ srslte_ra_dl_dci_t ra_dl;
 cf_t *sf_buffer = NULL, *output_buffer = NULL;
 int sf_n_re, sf_n_samples;
 
-int sf_start = 0; //Default first active SF 
-int sf_end = 9; //Default last active SF 
+/* Initialize default start and end sub-frames (SF) */
+int sf_start = 0; // Default first active SF 
+int sf_end = 9; // Default last active SF 
 
 pthread_t net_thread; 
 void *net_thread_fnc(void *arg);
@@ -103,8 +104,9 @@ srslte_netsink_t net_sink;
 int prbset_num = 1, last_prbset_num = 1; 
 int prbset_orig = 0; 
 
-int interval_of_averaging = 20; 
-int frequency_of_update = 10; 
+/* Initialize default averaging and updating frequency (in terms of number of periods) */ 
+int interval_of_averaging = 20; // Values averaged over 20 periods 
+int frequency_of_update = 10; // Values updated once every 10 periods 
 
 void usage(char *prog) {
   printf("Usage: %s [aglfmoizsencpvu]\n", prog);
@@ -493,9 +495,7 @@ int main(int argc, char **argv) {
     exit(-1);
   }
 #endif
-  
-  printf("Printing inside main!!"); 
-
+   
   parse_args(argc, argv);
 
   N_id_2 = cell.id % 3;
@@ -597,13 +597,14 @@ int main(int argc, char **argv) {
   int no_of_off_sframes; 
  
   while ((nf < nof_frames || nof_frames == -1) && !go_exit) {
-    for (sf_idx = 0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1); sf_idx++) {
-      bzero(sf_buffer, sizeof(cf_t) * sf_n_re); 
+    /* Loop around number of SFs = 1024 and index them by sf_idx */ 
+    for (sf_idx = 0; sf_idx < SRSLTE_NSUBFRAMES_X_FRAME && (nf < nof_frames || nof_frames == -1); sf_idx++) {       bzero(sf_buffer, sizeof(cf_t) * sf_n_re); 
 
       sf_start = 0; 
       sf_end = 9; 
      
-      if ((double)(time(NULL) - start_time) == frequency_of_update*period) {  //Recompute period and on_duration periodically 
+      /* Recompute period and on_duration periodically */
+      if ((double)(time(NULL) - start_time) == frequency_of_update*period) {  
 		  flag = true; 
                   printf("Recomputing period and on_duration! \n");  
 	  }
@@ -624,23 +625,22 @@ int main(int argc, char **argv) {
              exit(0);
            } 
           else{ 
-            //fscanf(myfile2,"%lf",&period); 
-           double period_array[count];
-           int i = 0; 
-           while (i < count) {
+              double period_array[count];
+              int i = 0; 
+              while (i < count) {
                   fscanf(myfile2,"%lf\n",&period_array[i]); 
                   i++;
-            }
-            fclose(myfile2);
-            double sum_period = 0; 
-            int k = 0; 
-            for (k = count - interval_of_averaging; k!=count;k++) {
+              }
+              fclose(myfile2);
+              double sum_period = 0; 
+              int k = 0; 
+              for (k = count - interval_of_averaging; k!=count;k++) {
                   sum_period += period_array[k];
-            } 
-            period = sum_period/interval_of_averaging; 
+              } 
+              period = sum_period/interval_of_averaging; 
 
-            period = round(period); 
-            printf("Period = %lf \n",period);
+              period = round(period); 
+              printf("Updated Period = %lf \n",period);
            }
            FILE *myfile; 
            double on_duration; 
@@ -651,14 +651,13 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "Can't open store_on_duration file!\n");
 		exit(0);
 	   } 
-	   else{ 
-		//fscanf(myfile,"%lf",&on_duration); 
-		/** Code to read a set of on_duration values from file and compute their average **/
+	   else{  
+		/* Code to read a set of on_duration values from file and compute their average */
 		int i = 0; 
 	  
 		while (i < count) {
-				 fscanf(myfile,"%lf\n",&on_duration_array[i]);
-		         	 i++;
+		     fscanf(myfile,"%lf\n",&on_duration_array[i]);
+		     i++;
 		}
 		fclose(myfile);
 		double sum_on_duration = 0; 
@@ -677,31 +676,32 @@ int main(int argc, char **argv) {
 
       flag = false;  
       
-      if ((double)(time(NULL) - initial_start_time) == period) {   //Periodically mute sub-frames after every period 
+      /* Periodically mute sub-frames after every period */
+      if ((double)(time(NULL) - initial_start_time) == period) {   
 	   sf_start = no_of_off_sframes; 
 	   initial_start_time = (double) time(NULL); 
            printf("One period expired! Number of off sub-frames = %d \n",no_of_off_sframes); 
       } 
       
-      // Send PSS and SSS only in zeroth sub frame - LTE standards mandate transmitting in SF 5 as well 
-      if (sf_idx == 0 || sf_idx == 5) {
+      /* Send PSS and SSS only in zeroth sub frame - LTE standards mandate transmitting in SF 5 as well */
+      if (sf_idx == 0) {
         srslte_pss_put_slot(pss_signal, sf_buffer, cell.nof_prb, SRSLTE_CP_NORM);
         srslte_sss_put_slot(sf_idx ? sss_signal5 : sss_signal0, sf_buffer, cell.nof_prb,
             SRSLTE_CP_NORM);
       }
 
-      // Reference signal insertion  
+      /* Reference signal insertion */
       if (sf_idx >= sf_start && sf_idx <= sf_end) {
       srslte_refsignal_cs_put_sf(cell, 0, est.csr_signal.pilots[0][sf_idx], sf_buffer); 
       }
 
-      // MIB only in SF 0 
+      /* MIB only in SF 0 */
       srslte_pbch_mib_pack(&cell, sfn, bch_payload);
       if (sf_idx == 0) {
         srslte_pbch_encode(&pbch, bch_payload, slot1_symbols, nf%4);
       }
 
-      // PCFICH insertion 
+      /* PCFICH insertion */
       if (sf_idx >= sf_start && sf_idx <= sf_end) {
       srslte_pcfich_encode(&pcfich, cfi, sf_symbols, sf_idx); 
       }        
