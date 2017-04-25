@@ -117,7 +117,7 @@ void usage(char *prog) {
   printf("\t-s First active Sub Frame [Default %d]\n", sf_start); 
   printf("\t-e Last active Sub Frame [Default %d]\n", sf_end);
   printf("\t-i Interval of averaging [Default %d]\n", interval_of_averaging); 
-  printf("\t z Frequency of parameter update [Default %d]\n", frequency_of_update);  
+  printf("\t-z Frequency of parameter update [Default %d]\n", frequency_of_update);  
   printf("\t-f RF TX frequency [Default %.1f MHz]\n", rf_freq / 1000000);
 #else
   printf("\t   RF is disabled.\n");
