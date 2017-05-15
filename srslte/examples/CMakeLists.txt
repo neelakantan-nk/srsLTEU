@@ -33,6 +33,9 @@ target_link_libraries(synch_file srslte)
 add_executable(pdsch_ue pdsch_ue.c)
 target_link_libraries(pdsch_ue srslte pthread)
 
+add_executable(lteu_enodeb_latest lteu_enodeb_latest.c)
+target_link_libraries(lteu_enodeb_latest srslte pthread)
+
 add_executable(pdsch_enodeb pdsch_enodeb.c)
 target_link_libraries(pdsch_enodeb srslte pthread)
 
