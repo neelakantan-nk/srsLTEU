@@ -73,7 +73,7 @@ Where -f is the LTE channel frequency.
 You will need two computers, each equipped with a USRP. At the transmitter side, run: 
 
 ```
-lte/examples/pdsch_enodeb -f [frequency_in_Hz] [-h for more commands]
+lte/examples/lteu_enodeb_latest -f [frequency_in_Hz] [-h for more commands]
 ```
 
 At the receiver run:
@@ -86,7 +86,7 @@ lte/examples/pdsch_ue -r 1234 -f [frequency_in_Hz]
 The previous example sends random bits to the UE. It is possible to open a TCP socket and stream video over the LTE PHY DL wireless connection. At the transmitter side, run the following command:  
 
 ```
-lte/examples/pdsch_enodeb -f [frequency_in_Hz] -u 2000 [-h for more commands]
+lte/examples/lteu_enodeb_latest -f [frequency_in_Hz] -u 2000 [-h for more commands]
 ```
 
 The argument -u 2000 will open port 2000 for listening for TCP connections. Set a high-order MCS, like 16 by typing 16 in the eNodeB console and pressing Enter. 
